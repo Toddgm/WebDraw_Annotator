@@ -6,7 +6,7 @@
   "permissions": [
     "activeTab", // Access the currently active tab
     "scripting", // Inject scripts into the page
-    "storage"   // Save annotations locally
+    "storage" // Save annotations locally
   ],
   "action": {
     "default_icon": {
@@ -17,12 +17,13 @@
     "default_title": "Activate WebDraw"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "icons": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "content_scripts": [
     {
@@ -30,7 +31,7 @@
       "js": ["content_loader.js"] // A small script to listen for activation messages
     }
   ],
-   "web_accessible_resources": [
+  "web_accessible_resources": [
     {
       "resources": ["content.js", "content.css", "fonts/*"], // Make these injectable
       "matches": ["<all_urls>"]

@@ -11,12 +11,24 @@ if (!window.webDrawInitialized) {
   let textInputDiv = null;
   let isDrawing = false; // Flag for drag actions (pencil, rect, arrow)
   let currentTool = "pencil"; // 'pencil', 'rect', 'text', 'arrow', 'select'
-  let currentColor = "#FF0000";
+  let currentColor = "#228be6";
   let currentLineWidth = 3;
   let startX, startY; // Store DOC relative start coords
   let drawings = []; // Array of drawing objects
   let selectedDrawingIndex = null; // Index of the selected drawing, or null
   const PAGE_STORAGE_KEY_PREFIX = "webDraw_";
+
+  // define all icons used here
+  const svgs = {
+    select: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M480-80 310-250l57-57 73 73v-206H235l73 72-58 58L80-480l169-169 57 57-72 72h206v-206l-73 73-57-57 170-170 170 170-57 57-73-73v206h205l-73-72 58-58 170 170-170 170-57-57 73-73H520v205l72-73 58 58L480-80Z"/></svg>`,
+    pencil: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M80 0v-160h800V0H80Zm160-320h56l312-311-29-29-28-28-311 312v56Zm-80 80v-170l448-447q11-11 25.5-17t30.5-6q16 0 31 6t27 18l55 56q12 11 17.5 26t5.5 31q0 15-5.5 29.5T777-687L330-240H160Zm560-504-56-56 56 56ZM608-631l-29-29-28-28 57 57Z"/></svg>`,
+    rectangle: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Z"/></svg>`,
+    arrow: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M80 0v-160h800V0H80Zm160-320h56l312-311-29-29-28-28-311 312v56Zm-80 80v-170l448-447q11-11 25.5-17t30.5-6q16 0 31 6t27 18l55 56q12 11 17.5 26t5.5 31q0 15-5.5 29.5T777-687L330-240H160Zm560-504-56-56 56 56ZM608-631l-29-29-28-28 57 57Z"/></svg>`,
+    text: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M480-80 310-250l57-57 73 73v-206H235l73 72-58 58L80-480l169-169 57 57-72 72h206v-206l-73 73-57-57 170-170 170 170-57 57-73-73v206h205l-73-72 58-58 170 170-170 170-57-57 73-73H520v205l72-73 58 58L480-80Z"/></svg>`,
+    share: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Zm0-80q17 0 28.5-11.5T720-200q0-17-11.5-28.5T680-240q-17 0-28.5 11.5T640-200q0 17 11.5 28.5T680-160ZM200-440q17 0 28.5-11.5T240-480q0-17-11.5-28.5T200-520q-17 0-28.5 11.5T160-480q0 17 11.5 28.5T200-440Zm480-280q17 0 28.5-11.5T720-760q0-17-11.5-28.5T680-800q-17 0-28.5 11.5T640-760q0 17 11.5 28.5T680-720Zm0 520ZM200-480Zm480-280Z"/></svg>`,
+    clear: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M440-320h80v-166l64 62 56-56-160-160-160 160 56 56 64-62v166ZM280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520Zm-400 0v520-520Z"/></svg>`,
+    exit: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M200-120q-33 0-56.5-23.5T120-200v-160h80v160h560v-560H200v160h-80v-160q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm220-160-56-58 102-102H120v-80h346L364-622l56-58 200 200-200 200Z"/></svg>`,
+  };
 
   // --- Initialization ---
 
@@ -71,47 +83,187 @@ if (!window.webDrawInitialized) {
       return false;
     }
   }
+  // --- NEW: Sharing Handlers ---
+
+  function handleShareAsLink(e) {
+    e.preventDefault();
+    console.log("Initiating Share as Link...");
+    setLoadingState(true, "Generating link...");
+
+    const dataPackage = {
+      originalUrl: window.location.href,
+      drawings: drawings,
+    };
+
+    chrome.runtime.sendMessage(
+      { action: "createShareLink", data: dataPackage },
+      (response) => {
+        setLoadingState(false);
+        if (chrome.runtime.lastError) {
+          console.error("Share Link Error:", chrome.runtime.lastError.message);
+          alert(
+            "Error generating share link: " + chrome.runtime.lastError.message
+          );
+        } else if (response && response.error) {
+          console.error("Share Link Error:", response.error);
+          alert("Error generating share link: " + response.error);
+        } else if (response && response.shareableLink) {
+          prompt("Share this link (Ctrl+C to copy):", response.shareableLink);
+          // Or copy to clipboard automatically: navigator.clipboard.writeText(response.shareableLink).then(...)
+        } else {
+          alert("Failed to generate share link. Unknown error.");
+        }
+      }
+    );
+  }
+
+  function handleShareAsImageLink(e) {
+    e.preventDefault();
+    console.log("Initiating Share as Image Link...");
+    setLoadingState(true, "Generating image link...");
+
+    const viewportData = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    };
+
+    // Need to send drawings AND viewport state at time of click
+    const dataPackage = {
+      drawings: drawings,
+      viewport: viewportData,
+    };
+
+    chrome.runtime.sendMessage(
+      { action: "createImageLink", data: dataPackage },
+      (response) => {
+        setLoadingState(false);
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Share Image Link Error:",
+            chrome.runtime.lastError.message
+          );
+          alert(
+            "Error generating image link: " + chrome.runtime.lastError.message
+          );
+        } else if (response && response.error) {
+          console.error("Share Image Link Error:", response.error);
+          alert("Error generating image link: " + response.error);
+        } else if (response && response.imageUrl) {
+          prompt("Share this image link (Ctrl+C to copy):", response.imageUrl);
+        } else {
+          alert("Failed to generate image link. Unknown error.");
+        }
+      }
+    );
+  }
+
+  // Helper for loading state (optional)
+  function setLoadingState(isLoading, message = "Loading...") {
+    const shareBtn = document.querySelector(".webdraw-share-btn");
+    if (!shareBtn) return;
+    if (isLoading) {
+      shareBtn.disabled = true;
+      shareBtn.textContent = "⏳"; // Or use a spinner icon/class
+      // Optionally show a message overlay
+    } else {
+      shareBtn.disabled = false;
+      shareBtn.textContent = "🔗"; // Restore original icon
+    }
+  }
 
   function createToolbox() {
-    if (document.getElementById("webDrawToolbox")) return;
+    if (document.getElementById("webDrawToolbox")) {
+      console.warn("WebDraw: Toolbox already exists.");
+      return; // Prevent multiple toolboxes
+    }
     toolbox = document.createElement("div");
     toolbox.id = "webDrawToolbox";
-    // Add Select and Arrow buttons
     toolbox.innerHTML = `
           <div class="webdraw-title">WebDraw</div>
-          <button data-tool="select" class="webdraw-button" title="Select (S)">🖱️</button>
-          <button data-tool="pencil" class="webdraw-button active" title="Pencil (P)">✏️</button>
-          <button data-tool="rect" class="webdraw-button" title="Rectangle (R)">⬜</button>
-          <button data-tool="arrow" class="webdraw-button" title="Arrow (A)">↗️</button>
+          <button data-tool="select" class="webdraw-button" title="Select (S)">${svgs.select}</button>
+          <button data-tool="pencil" class="webdraw-button active" title="Pencil (P)">${svgs.pencil}</button>
+          <button data-tool="rect" class="webdraw-button" title="Rectangle (R)">${svgs.rectangle}</button>
+          <button data-tool="arrow" class="webdraw-button" title="Arrow (A)">↗</button>
           <button data-tool="text" class="webdraw-button" title="Text (T)"> T </button>
           <input type="color" id="webDrawColorPicker" value="${currentColor}" title="Color">
-          <button data-tool="clear" class="webdraw-button" title="Clear All">🗑️</button>
-          <!-- Removed Share button for simplicity for now
-          <button data-tool="share" class="webdraw-button" title="Share (Conceptual)">🔗</button>
-           -->
-          <button data-tool="exit" class="webdraw-button" title="Exit (Esc)">❌</button>
+          <div class="webdraw-dropdown">
+             <button class="webdraw-button webdraw-share-btn" title="Share">${svgs.share}</button>
+             <div class="webdraw-dropdown-content">
+                 <a href="#" id="webDrawShareLink">Share as Link</a>
+                 <a href="#" id="webDrawShareImageLink">Share as Image Link</a>
+             </div>
+        </div>
+          <button data-tool="clear" class="webdraw-button" title="Clear All">${svgs.clear}</button>
+          <button data-tool="exit" class="webdraw-button" title="Exit (Esc)">${svgs.exit}</button>
       `;
-    document.body.appendChild(toolbox);
+    document.body.appendChild(toolbox); // Append to body BEFORE trying to get elements from it
     console.log("WebDraw: Toolbox created.");
 
+    // General toolbox click handler
     toolbox.addEventListener("click", handleToolboxClick);
-    const colorPicker = document.getElementById("webDrawColorPicker");
-    if (colorPicker) {
-      colorPicker.addEventListener("input", (e) => {
+
+    // Specific listeners for the dropdown links
+    const shareLinkOption = document.getElementById("webDrawShareLink");
+    const shareImageLinkOption = document.getElementById(
+      "webDrawShareImageLink"
+    );
+
+    if (shareLinkOption) {
+      shareLinkOption.addEventListener("click", handleShareAsLink);
+      console.log("WebDraw: 'Share as Link' listener attached.");
+    } else {
+      console.error(
+        "WebDraw: 'webDrawShareLink' element not found! Check toolbox HTML."
+      );
+    }
+
+    if (shareImageLinkOption) {
+      shareImageLinkOption.addEventListener("click", handleShareAsImageLink);
+      console.log(
+        "WebDraw: 'Share Visible Area as Image Link' listener attached."
+      );
+    } else {
+      console.error(
+        "WebDraw: 'webDrawShareImageLink' element not found! Check toolbox HTML."
+      );
+    }
+
+    // **** CORRECTED COLOR PICKER LOGIC ****
+    const colorPickerElement = document.getElementById("webDrawColorPicker"); // Use a different variable name to avoid confusion if 'colorPicker' was used elsewhere
+    if (colorPickerElement) {
+      colorPickerElement.addEventListener("input", (e) => {
         currentColor = e.target.value;
+        console.log("WebDraw: Color changed to", currentColor);
         // Optional: Update selected drawing color if one is selected
         if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
           drawings[selectedDrawingIndex].color = currentColor;
+          // If we allow changing lineWidth of selected object later, do it here too
+          // drawings[selectedDrawingIndex].lineWidth = currentLineWidth;
           saveDrawings();
           redrawCanvas();
         }
       });
+      console.log("WebDraw: Color picker listener attached.");
+    } else {
+      console.error(
+        "WebDraw: 'webDrawColorPicker' element not found! Check toolbox HTML."
+      );
     }
   }
 
   function handleToolboxClick(e) {
     const targetButton = e.target.closest("button[data-tool]");
-    if (!targetButton) return; // Click wasn't on a tool button
+    const targetColorPicker = e.target.closest("#webDrawColorPicker");
+    const isShareButton = e.target.classList.contains("webdraw-share-btn"); // Check if it's the main share btn
+    // Don't process clicks on the main share button here (handled by dropdown)
+    if (!targetButton || isShareButton) {
+      if (targetColorPicker) {
+        /* handle color */
+      }
+      return;
+    }
 
     const tool = targetButton.getAttribute("data-tool");
     const currentActiveButton = toolbox.querySelector(".webdraw-button.active");
