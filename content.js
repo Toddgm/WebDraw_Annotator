@@ -25,7 +25,6 @@ if (!window.webDrawInitialized) {
     rectangle: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Z"/></svg>`,
     arrow: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M80 0v-160h800V0H80Zm160-320h56l312-311-29-29-28-28-311 312v56Zm-80 80v-170l448-447q11-11 25.5-17t30.5-6q16 0 31 6t27 18l55 56q12 11 17.5 26t5.5 31q0 15-5.5 29.5T777-687L330-240H160Zm560-504-56-56 56 56ZM608-631l-29-29-28-28 57 57Z"/></svg>`,
     text: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M480-80 310-250l57-57 73 73v-206H235l73 72-58 58L80-480l169-169 57 57-72 72h206v-206l-73 73-57-57 170-170 170 170-57 57-73-73v206h205l-73-72 58-58 170 170-170 170-57-57 73-73H520v205l72-73 58 58L480-80Z"/></svg>`,
-    share: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Zm0-80q17 0 28.5-11.5T720-200q0-17-11.5-28.5T680-240q-17 0-28.5 11.5T640-200q0 17 11.5 28.5T680-160ZM200-440q17 0 28.5-11.5T240-480q0-17-11.5-28.5T200-520q-17 0-28.5 11.5T160-480q0 17 11.5 28.5T200-440Zm480-280q17 0 28.5-11.5T720-760q0-17-11.5-28.5T680-800q-17 0-28.5 11.5T640-760q0 17 11.5 28.5T680-720Zm0 520ZM200-480Zm480-280Z"/></svg>`,
     clear: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M440-320h80v-166l64 62 56-56-160-160-160 160 56 56 64-62v166ZM280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520Zm-400 0v520-520Z"/></svg>`,
     exit: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#02af76"><path d="M200-120q-33 0-56.5-23.5T120-200v-160h80v160h560v-560H200v160h-80v-160q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm220-160-56-58 102-102H120v-80h346L364-622l56-58 200 200-200 200Z"/></svg>`,
   };
@@ -83,95 +82,6 @@ if (!window.webDrawInitialized) {
       return false;
     }
   }
-  // --- NEW: Sharing Handlers ---
-
-  function handleShareAsLink(e) {
-    e.preventDefault();
-    console.log("Initiating Share as Link...");
-    setLoadingState(true, "Generating link...");
-
-    const dataPackage = {
-      originalUrl: window.location.href,
-      drawings: drawings,
-    };
-
-    chrome.runtime.sendMessage(
-      { action: "createShareLink", data: dataPackage },
-      (response) => {
-        setLoadingState(false);
-        if (chrome.runtime.lastError) {
-          console.error("Share Link Error:", chrome.runtime.lastError.message);
-          alert(
-            "Error generating share link: " + chrome.runtime.lastError.message
-          );
-        } else if (response && response.error) {
-          console.error("Share Link Error:", response.error);
-          alert("Error generating share link: " + response.error);
-        } else if (response && response.shareableLink) {
-          prompt("Share this link (Ctrl+C to copy):", response.shareableLink);
-          // Or copy to clipboard automatically: navigator.clipboard.writeText(response.shareableLink).then(...)
-        } else {
-          alert("Failed to generate share link. Unknown error.");
-        }
-      }
-    );
-  }
-
-  function handleShareAsImageLink(e) {
-    e.preventDefault();
-    console.log("Initiating Share as Image Link...");
-    setLoadingState(true, "Generating image link...");
-
-    const viewportData = {
-      width: window.innerWidth,
-      height: window.innerHeight,
-      scrollX: window.scrollX,
-      scrollY: window.scrollY,
-    };
-
-    // Need to send drawings AND viewport state at time of click
-    const dataPackage = {
-      drawings: drawings,
-      viewport: viewportData,
-    };
-
-    chrome.runtime.sendMessage(
-      { action: "createImageLink", data: dataPackage },
-      (response) => {
-        setLoadingState(false);
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Share Image Link Error:",
-            chrome.runtime.lastError.message
-          );
-          alert(
-            "Error generating image link: " + chrome.runtime.lastError.message
-          );
-        } else if (response && response.error) {
-          console.error("Share Image Link Error:", response.error);
-          alert("Error generating image link: " + response.error);
-        } else if (response && response.imageUrl) {
-          prompt("Share this image link (Ctrl+C to copy):", response.imageUrl);
-        } else {
-          alert("Failed to generate image link. Unknown error.");
-        }
-      }
-    );
-  }
-
-  // Helper for loading state (optional)
-  function setLoadingState(isLoading, message = "Loading...") {
-    const shareBtn = document.querySelector(".webdraw-share-btn");
-    if (!shareBtn) return;
-    if (isLoading) {
-      shareBtn.disabled = true;
-      shareBtn.textContent = "⏳"; // Or use a spinner icon/class
-      // Optionally show a message overlay
-    } else {
-      shareBtn.disabled = false;
-      shareBtn.textContent = "🔗"; // Restore original icon
-    }
-  }
 
   function createToolbox() {
     if (document.getElementById("webDrawToolbox")) {
@@ -188,59 +98,23 @@ if (!window.webDrawInitialized) {
           <button data-tool="arrow" class="webdraw-button" title="Arrow (A)">↗</button>
           <button data-tool="text" class="webdraw-button" title="Text (T)"> T </button>
           <input type="color" id="webDrawColorPicker" value="${currentColor}" title="Color">
-          <div class="webdraw-dropdown">
-             <button class="webdraw-button webdraw-share-btn" title="Share">${svgs.share}</button>
-             <div class="webdraw-dropdown-content">
-                 <a href="#" id="webDrawShareLink">Share as Link</a>
-                 <a href="#" id="webDrawShareImageLink">Share as Image Link</a>
-             </div>
-        </div>
           <button data-tool="clear" class="webdraw-button" title="Clear All">${svgs.clear}</button>
           <button data-tool="exit" class="webdraw-button" title="Exit (Esc)">${svgs.exit}</button>
       `;
-    document.body.appendChild(toolbox); // Append to body BEFORE trying to get elements from it
+    document.body.appendChild(toolbox);
     console.log("WebDraw: Toolbox created.");
 
     // General toolbox click handler
     toolbox.addEventListener("click", handleToolboxClick);
 
-    // Specific listeners for the dropdown links
-    const shareLinkOption = document.getElementById("webDrawShareLink");
-    const shareImageLinkOption = document.getElementById(
-      "webDrawShareImageLink"
-    );
-
-    if (shareLinkOption) {
-      shareLinkOption.addEventListener("click", handleShareAsLink);
-      console.log("WebDraw: 'Share as Link' listener attached.");
-    } else {
-      console.error(
-        "WebDraw: 'webDrawShareLink' element not found! Check toolbox HTML."
-      );
-    }
-
-    if (shareImageLinkOption) {
-      shareImageLinkOption.addEventListener("click", handleShareAsImageLink);
-      console.log(
-        "WebDraw: 'Share Visible Area as Image Link' listener attached."
-      );
-    } else {
-      console.error(
-        "WebDraw: 'webDrawShareImageLink' element not found! Check toolbox HTML."
-      );
-    }
-
-    // **** CORRECTED COLOR PICKER LOGIC ****
-    const colorPickerElement = document.getElementById("webDrawColorPicker"); // Use a different variable name to avoid confusion if 'colorPicker' was used elsewhere
+    // Color Picker Logic
+    const colorPickerElement = document.getElementById("webDrawColorPicker");
     if (colorPickerElement) {
       colorPickerElement.addEventListener("input", (e) => {
         currentColor = e.target.value;
         console.log("WebDraw: Color changed to", currentColor);
-        // Optional: Update selected drawing color if one is selected
         if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
           drawings[selectedDrawingIndex].color = currentColor;
-          // If we allow changing lineWidth of selected object later, do it here too
-          // drawings[selectedDrawingIndex].lineWidth = currentLineWidth;
           saveDrawings();
           redrawCanvas();
         }
@@ -256,13 +130,12 @@ if (!window.webDrawInitialized) {
   function handleToolboxClick(e) {
     const targetButton = e.target.closest("button[data-tool]");
     const targetColorPicker = e.target.closest("#webDrawColorPicker");
-    const isShareButton = e.target.classList.contains("webdraw-share-btn"); // Check if it's the main share btn
-    // Don't process clicks on the main share button here (handled by dropdown)
-    if (!targetButton || isShareButton) {
+
+    if (!targetButton) {
       if (targetColorPicker) {
-        /* handle color */
+        // Color picker interaction is handled by its own 'input' event listener
       }
-      return;
+      return; // Click was not on a tool button
     }
 
     const tool = targetButton.getAttribute("data-tool");
@@ -281,15 +154,15 @@ if (!window.webDrawInitialized) {
       deactivateDrawing();
       return;
     }
-    // Logic for regular tool buttons
+
     if (currentActiveButton) currentActiveButton.classList.remove("active");
     currentTool = tool;
     targetButton.classList.add("active");
-    selectedDrawingIndex = null; // Deselect any drawing when switching tools
-    setCursorForTool(currentTool); // Update cursor
-    if (textInputDiv) removeTextInput(); // Clean up text input if switching
+    selectedDrawingIndex = null;
+    setCursorForTool(currentTool);
+    if (textInputDiv) removeTextInput();
     console.log("Selected tool:", currentTool);
-    redrawCanvas(); // Redraw to remove selection highlight if any
+    redrawCanvas();
   }
 
   function setCursorForTool(tool) {
@@ -301,10 +174,10 @@ if (!window.webDrawInitialized) {
         canvas.style.cursor = "crosshair";
         break;
       case "text":
-        canvas.style.cursor = "text"; // Or 'crosshair' if drag starts immediately
+        canvas.style.cursor = "text";
         break;
       case "select":
-        canvas.style.cursor = "default"; // Standard pointer for selection
+        canvas.style.cursor = "default";
         break;
       default:
         canvas.style.cursor = "default";
@@ -314,7 +187,6 @@ if (!window.webDrawInitialized) {
   // --- Event Handling ---
 
   function addEventListeners() {
-    // ... (same as before) ...
     console.log("WebDraw: Adding event listeners.");
     if (!canvas) return;
     canvas.addEventListener("mousedown", handleMouseDown);
@@ -328,10 +200,12 @@ if (!window.webDrawInitialized) {
   }
 
   function removeEventListeners() {
-    // ... (same as before) ...
     console.log("WebDraw: Removing event listeners.");
     if (canvas) {
-      /* remove canvas listeners */
+      canvas.removeEventListener("mousedown", handleMouseDown);
+      canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("mouseup", handleMouseUp);
+      canvas.removeEventListener("mouseleave", handleMouseLeave);
     }
     window.removeEventListener("scroll", handleScroll);
     window.removeEventListener("resize", handleResize);
@@ -342,31 +216,47 @@ if (!window.webDrawInitialized) {
     requestAnimationFrame(redrawCanvas);
   }
   function handleResize() {
-    /* ... (same as before, redraws) ... */
+    if (!canvas || !ctx || !isActive) return;
+    // Recalculate canvas dimensions based on potentially changed scroll/doc size
+    const newWidth = Math.max(
+      document.body.scrollWidth,
+      document.documentElement.scrollWidth
+    );
+    const newHeight = Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight
+    );
+
+    if (canvas.width !== newWidth || canvas.height !== newHeight) {
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      console.log(
+        `WebDraw: Canvas resized due to window resize. New W: ${canvas.width} H: ${canvas.height}`
+      );
+    }
+    // Ensure line cap/join are reset if canvas context was lost (unlikely but good practice)
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    requestAnimationFrame(redrawCanvas); // Redraw everything
   }
 
   function handleKeyDown(e) {
     if (e.key === "Escape") {
-      // ... (same escape logic) ...
       if (textInputDiv) {
         removeTextInput();
       } else {
         deactivateDrawing();
       }
-    }
-    // Delete selected drawing
-    else if (e.key === "Delete" || e.key === "Backspace") {
+    } else if (e.key === "Delete" || e.key === "Backspace") {
       if (isActive && selectedDrawingIndex !== null) {
         console.log("Deleting selected drawing:", selectedDrawingIndex);
-        drawings.splice(selectedDrawingIndex, 1); // Remove item
-        selectedDrawingIndex = null; // Deselect
+        drawings.splice(selectedDrawingIndex, 1);
+        selectedDrawingIndex = null;
         saveDrawings();
         redrawCanvas();
-        e.preventDefault(); // Prevent browser back navigation on Backspace
+        e.preventDefault();
       }
-    }
-    // Tool shortcuts
-    else if (
+    } else if (
       !e.ctrlKey &&
       !e.metaKey &&
       !e.altKey &&
@@ -377,28 +267,33 @@ if (!window.webDrawInitialized) {
       if (e.key.toLowerCase() === "p") switchTool("pencil");
       else if (e.key.toLowerCase() === "r") switchTool("rect");
       else if (e.key.toLowerCase() === "t") switchTool("text");
-      else if (e.key.toLowerCase() === "a")
-        switchTool("arrow"); // Shortcut for Arrow
-      else if (e.key.toLowerCase() === "s") switchTool("select"); // Shortcut for Select
+      else if (e.key.toLowerCase() === "a") switchTool("arrow");
+      else if (e.key.toLowerCase() === "s") switchTool("select");
     }
   }
 
   function switchTool(tool) {
-    if (!toolbox || currentTool === tool) return; // Don't re-switch
+    if (!toolbox || currentTool === tool) return;
     const button = toolbox.querySelector(`button[data-tool="${tool}"]`);
     if (button) {
-      handleToolboxClick({ target: button });
+      // Simulate a click event on the button to use the existing handleToolboxClick logic
+      const clickEvent = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+      });
+      button.dispatchEvent(clickEvent);
     }
   }
 
   // --- Coordinate Helpers ---
   function getCanvasRelativeCoords(e) {
-    /* ... (same) ... */ if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
   function getDocumentRelativeCoords(e) {
-    /* ... (same) ... */ return { x: e.pageX, y: e.pageY };
+    return { x: e.pageX, y: e.pageY };
   }
 
   // --- Drawing Event Handlers ---
@@ -414,9 +309,8 @@ if (!window.webDrawInitialized) {
 
     startX = docCoords.x;
     startY = docCoords.y;
-    isDrawing = false; // Default to false, set true only for drag-drawing tools
+    isDrawing = false;
 
-    // --- Tool Specific Logic ---
     if (currentTool === "select") {
       selectedDrawingIndex = findClickedDrawingIndex(
         canvasCoords.x,
@@ -428,7 +322,7 @@ if (!window.webDrawInitialized) {
           ? `Selected index ${selectedDrawingIndex}`
           : "Nothing selected"
       );
-      redrawCanvas(); // Redraw to show/hide selection highlight
+      redrawCanvas();
     } else if (currentTool === "pencil") {
       isDrawing = true;
       ctx.beginPath();
@@ -442,10 +336,9 @@ if (!window.webDrawInitialized) {
         lineWidth: currentLineWidth,
       });
     } else if (currentTool === "rect" || currentTool === "arrow") {
-      isDrawing = true; // Start dragging for shape
+      isDrawing = true;
     } else if (currentTool === "text") {
-      // For text, mousedown just records the start. Input created on mouseup.
-      isDrawing = true; // Use isDrawing flag to indicate text placement drag has started
+      isDrawing = true;
     }
 
     e.preventDefault();
@@ -453,7 +346,6 @@ if (!window.webDrawInitialized) {
 
   function handleMouseMove(e) {
     if (!isDrawing || !ctx || !canvas) {
-      // Allow hover effects for selection tool even when not 'drawing'
       if (currentTool === "select" && isActive) {
         const hoverIndex = findClickedDrawingIndex(
           getCanvasRelativeCoords(e).x,
@@ -467,7 +359,6 @@ if (!window.webDrawInitialized) {
     const canvasCoords = getCanvasRelativeCoords(e);
     const docCoords = getDocumentRelativeCoords(e);
 
-    // --- Tool Specific Logic ---
     if (currentTool === "pencil") {
       ctx.lineTo(canvasCoords.x, canvasCoords.y);
       ctx.stroke();
@@ -476,7 +367,7 @@ if (!window.webDrawInitialized) {
         currentPath.points.push(docCoords);
       }
     } else if (currentTool === "rect" || currentTool === "arrow") {
-      redrawCanvas(); // Clear and redraw background
+      redrawCanvas();
       ctx.strokeStyle = currentColor;
       ctx.lineWidth = currentLineWidth;
       const rect = canvas.getBoundingClientRect();
@@ -491,7 +382,6 @@ if (!window.webDrawInitialized) {
           canvasCoords.y - startCanvasY
         );
       } else {
-        // Arrow tool
         ctx.beginPath();
         ctx.moveTo(startCanvasX, startCanvasY);
         ctx.lineTo(canvasCoords.x, canvasCoords.y);
@@ -503,15 +393,15 @@ if (!window.webDrawInitialized) {
           canvasCoords.x,
           canvasCoords.y,
           10 + currentLineWidth * 2
-        ); // Draw preview arrowhead
+        );
       }
     } else if (currentTool === "text") {
-      // Optionally draw a preview box during drag? For now, do nothing on move.
+      // No action on mouse move for text
     }
   }
 
   function handleMouseUp(e) {
-    if (e.button !== 0) return; // Only left clicks
+    if (e.button !== 0) return;
 
     const docCoords = getDocumentRelativeCoords(e);
     console.log(
@@ -519,15 +409,12 @@ if (!window.webDrawInitialized) {
     );
 
     if (!isDrawing && currentTool !== "select") {
-      // If not dragging (e.g., simple click for select)
-      isDrawing = false; // Ensure flag is reset
+      isDrawing = false;
       return;
     }
 
-    // --- Tool Specific Logic ---
     if (currentTool === "pencil") {
       if (ctx) ctx.closePath();
-      // Data already pushed during move
     } else if (currentTool === "rect") {
       const rectX = Math.min(startX, docCoords.x);
       const rectY = Math.min(startY, docCoords.y);
@@ -545,7 +432,6 @@ if (!window.webDrawInitialized) {
         });
       }
     } else if (currentTool === "arrow") {
-      // Only save if arrow has some length
       if (
         Math.abs(docCoords.x - startX) > 2 ||
         Math.abs(docCoords.y - startY) > 2
@@ -561,27 +447,23 @@ if (!window.webDrawInitialized) {
         });
       }
     } else if (currentTool === "text") {
-      // Create text input at the START position of the drag (mousedown location)
       createTextPrompt(startX, startY);
     }
 
-    // Common cleanup/saving for drawing tools
     if (currentTool !== "select") {
       redrawCanvas();
       saveDrawings();
       console.log("Drawing finished/Text prompt placed, saved drawings.");
     }
 
-    isDrawing = false; // Reset drawing flag
+    isDrawing = false;
   }
 
   function handleMouseLeave(e) {
     if (isDrawing && currentTool !== "select" && currentTool !== "text") {
-      // Don't finalize text on leave
       console.log("Mouse left canvas while drawing shape, finalizing.");
-      handleMouseUp(e);
+      handleMouseUp(e); // Finalize the drawing as if mouse was released
     }
-    // Reset hover cursor if leaving canvas
     if (currentTool === "select") {
       canvas.style.cursor = "default";
     }
@@ -598,7 +480,6 @@ if (!window.webDrawInitialized) {
     textInputDiv.contentEditable = true;
     textInputDiv.spellcheck = false;
 
-    // Style the input box border to match current drawing style
     textInputDiv.style.border = `${currentLineWidth}px solid ${currentColor}`;
     textInputDiv.style.position = "absolute";
     textInputDiv.style.left = `${docX}px`;
@@ -618,11 +499,7 @@ if (!window.webDrawInitialized) {
 
     let handleOutsideClick;
     const removeListenersAndInput = () => {
-      /* ... (same as before) ... */ document.removeEventListener(
-        "mousedown",
-        handleOutsideClick,
-        true
-      );
+      document.removeEventListener("mousedown", handleOutsideClick, true);
       removeTextInput();
     };
 
@@ -640,10 +517,7 @@ if (!window.webDrawInitialized) {
     });
 
     handleOutsideClick = (event) => {
-      /* ... (same as before) ... */ if (
-        textInputDiv &&
-        !textInputDiv.contains(event.target)
-      ) {
+      if (textInputDiv && !textInputDiv.contains(event.target)) {
         saveOrRemoveTextOnExit(docX, docY);
         removeListenersAndInput();
       }
@@ -651,52 +525,53 @@ if (!window.webDrawInitialized) {
     document.addEventListener("mousedown", handleOutsideClick, true);
 
     textInputDiv.addEventListener("blur", () => {
-      /* ... (same as before, uses setTimeout) ... */ setTimeout(() => {
+      setTimeout(() => {
+        // Check if textInputDiv still exists because it might have been removed by another event
         if (textInputDiv) {
           saveOrRemoveTextOnExit(docX, docY);
-          removeListenersAndInput();
+          removeListenersAndInput(); // Ensure this also removes the mousedown listener
         }
-      }, 150);
+      }, 150); // Delay to allow click events on toolbox etc. to fire first
     });
   }
 
   function saveOrRemoveTextOnExit(docX, docY) {
-    /* ... (same as before) ... */ if (!textInputDiv) return;
+    if (!textInputDiv) return;
     const currentText = textInputDiv.innerText;
     if (currentText.trim()) {
       saveText(docX, docY, currentText);
     } else {
-      removeTextInput();
+      removeTextInput(); // Just remove if empty, don't save
     }
   }
   function saveText(docX, docY, text) {
-    /* ... (same as before - pushes to drawings, saves, redraws) ... */ const trimmedText =
-      text.trim();
+    const trimmedText = text.trim();
     if (trimmedText && drawings) {
       drawings.push({
         type: "text",
         x: docX,
         y: docY,
         text: trimmedText,
-        color: currentColor,
-        font: '16px "Virgil", "Helvetica Neue", Arial, sans-serif',
+        color: currentColor, // Use current selected color for text
+        font: '16px "Virgil", "Helvetica Neue", Arial, sans-serif', // Use the app's drawing font
       });
       saveDrawings();
       redrawCanvas();
+      console.log("Text saved:", trimmedText);
     } else {
       console.log("saveText: Empty text not saved.");
     }
   }
   function removeTextInput() {
-    /* ... (same as before - removes div) ... */ if (textInputDiv) {
+    if (textInputDiv) {
       textInputDiv.remove();
       textInputDiv = null;
+      console.log("Text input removed.");
     }
   }
 
   // --- Selection and Hit Detection ---
 
-  // Simple Bounding Box calculation (in document coordinates)
   function getDrawingBounds(drawing) {
     if (!drawing) return null;
     let minX = Infinity,
@@ -727,9 +602,8 @@ if (!window.webDrawInitialized) {
         maxY = Math.max(drawing.y1, drawing.y2);
         break;
       case "text":
-        // Estimate text bounds (very rough)
-        const approxLineHeight = 20; // Based on 16px font + line height
-        const approxCharWidth = 8; // Rough estimate
+        const approxLineHeight = 20;
+        const approxCharWidth = 8;
         const lines = drawing.text.split("\n");
         const maxLineLength = lines.reduce(
           (max, line) => Math.max(max, line.length),
@@ -744,8 +618,8 @@ if (!window.webDrawInitialized) {
         return null;
     }
 
-    // Add padding based on line width for better hit detection near edges
-    const padding = (drawing.lineWidth || 1) / 2 + 5; // 5px extra tolerance
+    const padding =
+      (drawing.lineWidth || (drawing.type === "text" ? 1 : 1)) / 2 + 5;
     return {
       x: minX - padding,
       y: minY - padding,
@@ -754,37 +628,31 @@ if (!window.webDrawInitialized) {
     };
   }
 
-  // Checks if a point (in CANVAS coordinates) hits a drawing
   function isPointHittingDrawing(canvasX, canvasY, drawing) {
     const bounds = getDrawingBounds(drawing);
     if (!bounds || !canvas) return false;
 
-    // Convert canvas click coords back to document coords for comparison with bounds
     const rect = canvas.getBoundingClientRect();
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const docX = canvasX + scrollX + rect.left;
     const docY = canvasY + scrollY + rect.top;
 
-    // Simple AABB (Axis-Aligned Bounding Box) check
     return (
       docX >= bounds.x &&
       docX <= bounds.x + bounds.width &&
       docY >= bounds.y &&
       docY <= bounds.y + bounds.height
     );
-    // TODO: Implement more precise hit detection for lines/curves later if needed
   }
 
-  // Finds the index of the topmost drawing hit by a click (canvas coords)
   function findClickedDrawingIndex(canvasX, canvasY) {
     for (let i = drawings.length - 1; i >= 0; i--) {
-      // Iterate backwards (topmost first)
       if (isPointHittingDrawing(canvasX, canvasY, drawings[i])) {
         return i;
       }
     }
-    return null; // Nothing hit
+    return null;
   }
 
   // --- Arrow Head Drawing ---
@@ -792,17 +660,16 @@ if (!window.webDrawInitialized) {
     const dx = toX - fromX;
     const dy = toY - fromY;
     const angle = Math.atan2(dy, dx);
-    ctx.save(); // Save context state
+    ctx.save();
     ctx.translate(toX, toY);
     ctx.rotate(angle);
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(-headLength, -headLength / 2);
-    ctx.moveTo(0, 0); // Move back to the tip for the other line
+    ctx.moveTo(0, 0);
     ctx.lineTo(-headLength, headLength / 2);
-    // Use current strokeStyle and lineWidth set before calling
     ctx.stroke();
-    ctx.restore(); // Restore context state
+    ctx.restore();
   }
 
   // --- Redrawing & Persistence ---
@@ -818,7 +685,6 @@ if (!window.webDrawInitialized) {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
 
-    // Helper to convert document coords to current canvas coords
     const getCanvasCoords = (docX, docY) => ({
       x: docX - scrollX - rect.left,
       y: docY - scrollY - rect.top,
@@ -826,8 +692,8 @@ if (!window.webDrawInitialized) {
 
     drawings.forEach((d, index) => {
       ctx.strokeStyle = d.color || "#000000";
-      ctx.fillStyle = d.color || "#000000";
-      ctx.font = d.font || "16px sans-serif";
+      ctx.fillStyle = d.color || "#000000"; // For text
+      ctx.font = d.font || '16px "Virgil", "Helvetica Neue", Arial, sans-serif';
       ctx.lineWidth = d.lineWidth || 1;
 
       try {
@@ -864,8 +730,8 @@ if (!window.webDrawInitialized) {
           );
         } else if (d.type === "text") {
           const lines = d.text.split("\n");
-          const fontSize = parseInt(ctx.font) || 16;
-          const lineHeight = fontSize * 1.4;
+          const fontSize = parseInt(ctx.font) || 16; // Parse font size from the string
+          const lineHeight = fontSize * 1.4; // Approximate line height
           lines.forEach((line, lineIndex) => {
             ctx.fillText(
               line,
@@ -875,22 +741,21 @@ if (!window.webDrawInitialized) {
           });
         }
 
-        // Draw selection highlight if this drawing is selected
         if (index === selectedDrawingIndex) {
           const bounds = getDrawingBounds(d);
           if (bounds) {
             const selectionCoords = getCanvasCoords(bounds.x, bounds.y);
             ctx.save();
-            ctx.strokeStyle = "rgba(0, 100, 255, 0.7)"; // Blue selection
+            ctx.strokeStyle = "rgba(0, 100, 255, 0.7)";
             ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]); // Dashed line for selection
+            ctx.setLineDash([4, 4]);
             ctx.strokeRect(
               selectionCoords.x,
               selectionCoords.y,
               bounds.width,
               bounds.height
             );
-            ctx.setLineDash([]); // Reset line dash
+            ctx.setLineDash([]);
             ctx.restore();
           }
         }
@@ -905,75 +770,102 @@ if (!window.webDrawInitialized) {
   }
 
   function getStorageKey() {
-    /* ... (same) ... */ try {
-      const p = window.location.pathname
-          .replace(/[^a-zA-Z0-9/-]/g, "_")
-          .substring(0, 100),
-        o = window.location.origin;
-      return PAGE_STORAGE_KEY_PREFIX + o + p;
+    try {
+      const path = window.location.pathname
+        .replace(/[^a-zA-Z0-9/-]/g, "_") // Sanitize path
+        .substring(0, 100); // Truncate long paths
+      const origin = window.location.origin; // Get origin for uniqueness
+      return PAGE_STORAGE_KEY_PREFIX + origin + path;
     } catch (e) {
-      console.error(e);
-      return PAGE_STORAGE_KEY_PREFIX + "fallback";
+      console.error("WebDraw: Error generating storage key:", e);
+      // Fallback key in case of unexpected errors (e.g., weird URLs)
+      return PAGE_STORAGE_KEY_PREFIX + "fallback_error_key";
     }
   }
   function saveDrawings() {
-    /* ... (same) ... */ if (!drawings) return;
+    if (!drawings) return;
     try {
-      const k = getStorageKey(),
-        d = JSON.stringify(drawings);
-      if (d.length > 4.5e6) console.warn("Data > 4.5MB");
-      chrome.storage.local.set({ [k]: d }, () => {
-        if (chrome.runtime.lastError) console.error(chrome.runtime.lastError);
+      const key = getStorageKey();
+      const data = JSON.stringify(drawings);
+      // Basic check for excessive data size (localStorage limit is ~5MB)
+      if (data.length > 4.5 * 1024 * 1024) {
+        // 4.5MB
+        console.warn(
+          "WebDraw: Drawing data is very large, might exceed storage limits."
+        );
+      }
+      chrome.storage.local.set({ [key]: data }, () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "WebDraw: Error saving drawings:",
+            chrome.runtime.lastError
+          );
+        } else {
+          // console.log("WebDraw: Drawings saved for key:", key);
+        }
       });
     } catch (e) {
-      console.error(e);
+      console.error("WebDraw: Exception while saving drawings:", e);
     }
   }
   function loadDrawings() {
-    /* ... (same) ... */ const k = getStorageKey();
-    console.log("Loading key:", k);
-    chrome.storage.local.get([k], (r) => {
+    const key = getStorageKey();
+    console.log("WebDraw: Attempting to load drawings for key:", key);
+    chrome.storage.local.get([key], (result) => {
       if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
-        drawings = [];
-      } else if (r[k]) {
+        console.error(
+          "WebDraw: Error loading drawings:",
+          chrome.runtime.lastError
+        );
+        drawings = []; // Initialize with empty array on error
+      } else if (result[key]) {
         try {
-          const d = JSON.parse(r[k]);
-          if (Array.isArray(d)) {
-            drawings = d.filter((i) => i && i.type);
-            console.log(`${drawings.length} drawings loaded.`);
+          const parsedData = JSON.parse(result[key]);
+          if (Array.isArray(parsedData)) {
+            // Basic validation for each drawing object (optional, but good)
+            drawings = parsedData.filter((item) => item && item.type); // Ensure each item is an object with a type
+            console.log(
+              `WebDraw: ${drawings.length} drawings loaded successfully for key: ${key}`
+            );
           } else {
-            console.error("Loaded data not array.");
+            console.error(
+              "WebDraw: Loaded data is not an array. Key:",
+              key,
+              "Data:",
+              result[key]
+            );
             drawings = [];
           }
         } catch (e) {
-          console.error("Parse error:", e);
-          drawings = [];
+          console.error(
+            "WebDraw: Error parsing loaded drawings. Key:",
+            key,
+            "Error:",
+            e
+          );
+          drawings = []; // Initialize with empty array on parse error
         }
       } else {
-        console.log("No drawings found.");
-        drawings = [];
+        console.log(
+          "WebDraw: No drawings found in local storage for key:",
+          key
+        );
+        drawings = []; // Initialize with empty array if no data
       }
-      redrawCanvas();
+      redrawCanvas(); // Redraw canvas whether drawings were loaded or not
     });
-  }
-
-  // --- Sharing (Conceptual) ---
-  function shareDrawing() {
-    /* ... (same conceptual code) ... */
   }
 
   // --- Deactivation ---
   function deactivateDrawing() {
-    /* ... (same cleanup, including text input check/removal, event listeners, DOM nodes) ... */ console.log(
-      "Deactivating..."
-    );
+    console.log("WebDraw: Deactivating...");
     if (textInputDiv) {
+      // Attempt to save text if any, then remove input
       saveOrRemoveTextOnExit(
         parseFloat(textInputDiv.style.left),
         parseFloat(textInputDiv.style.top)
       );
-      removeTextInput();
+      removeTextInput(); // Ensures it's removed even if saveOrRemoveTextOnExit didn't explicitly
     }
     removeEventListeners();
     if (canvas) canvas.remove();
@@ -984,25 +876,61 @@ if (!window.webDrawInitialized) {
     drawings = [];
     selectedDrawingIndex = null;
     isActive = false;
-    document.body.style.cursor = "default";
+    document.body.style.cursor = "default"; // Reset body cursor
+    // Notify background script (if needed for state management there)
     chrome.runtime
       .sendMessage({ action: "drawingDeactivated" })
-      .catch((e) => console.warn(e));
-    console.log("Deactivated.");
-    window.webDrawInitialized = false;
-    return false;
+      .catch((e) =>
+        console.warn("WebDraw: Could not send deactivation message", e)
+      );
+    console.log("WebDraw: Deactivated.");
+    window.webDrawInitialized = false; // Reset initialization flag for next activation
+    return false; // Return new state
   }
 
   // --- Global Toggle Function ---
   window.webDrawToggle = async () => {
-    /* ... (same) ... */ console.log("Toggle. isActive=", isActive);
+    console.log(
+      "WebDraw: Toggle requested. Current state isActive =",
+      isActive
+    );
     if (isActive) {
-      return deactivateDrawing();
+      return deactivateDrawing(); // Returns false
     } else {
+      // Re-set the initialized flag as we are starting up again.
+      // The initial check `if (!window.webDrawInitialized)` at the top of the file
+      // prevents re-declaration of functions, but this flag indicates operational status.
       window.webDrawInitialized = true;
-      return initializeDrawing();
+      return initializeDrawing(); // Returns true if successful
     }
   };
 } else {
   console.log("WebDraw: Already initialized flag set.");
 } // End of window.webDrawInitialized check
+// This script is injected immediately on page load (as per manifest).
+// It just sits and waits for the activation message from the background script.
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "toggleWebDraw") {
+    // Check if the main content script's functions/objects already exist
+    if (typeof window.webDrawToggle === "function") {
+      // If yes, call the toggle function
+      window.webDrawToggle().then((isActive) => {
+        sendResponse({ isActive: isActive });
+      });
+      return true; // Indicates async response
+    } else {
+      // If not, it means content.js hasn't been injected or loaded yet.
+      // The background script handles the injection.
+      // We send back a negative response or let background handle the promise rejection.
+      console.log("WebDraw Loader: Main script not ready yet.");
+      // Let background know we can't toggle yet (it should handle injection first)
+      sendResponse({ isActive: false, error: "Main script not loaded." });
+    }
+  }
+  // Important: Return true if you intend to use sendResponse asynchronously.
+  // Otherwise, the message channel might close prematurely.
+});
+
+// We avoid loading the heavy content.js until the user clicks the icon.
+console.log("WebDraw Loader: Ready and waiting for activation.");

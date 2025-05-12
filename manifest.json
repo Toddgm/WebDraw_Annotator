@@ -4,9 +4,9 @@
   "version": "1.0",
   "description": "Draw, highlight, and add text callouts directly on web pages.",
   "permissions": [
-    "activeTab", // Access the currently active tab
-    "scripting", // Inject scripts into the page
-    "storage" // Save annotations locally
+    "activeTab",
+    "scripting",
+    "storage"
   ],
   "action": {
     "default_icon": {
@@ -27,13 +27,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"], // Run on all websites initially
-      "js": ["content_loader.js"] // A small script to listen for activation messages
+      "matches": ["<all_urls>"],
+      "js": ["content_loader.js"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content.js", "content.css", "fonts/*"], // Make these injectable
+      "resources": ["content.js", "content.css", "fonts/*"],
       "matches": ["<all_urls>"]
     }
   ]
