@@ -89,37 +89,37 @@
 }
 
 /* Style Sub-window */
+/* Style Sub-window */
 #webDrawStyleSubwindow {
-  position: fixed; /* Changed to fixed to move with viewport like toolbox */
+  position: fixed;
   background-color: #ffffff;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   padding: 10px;
-  z-index: 10002; /* Above toolbox and canvas */
+  z-index: 10002;
   display: flex;
   flex-direction: column;
   gap: 8px;
   border: 1px solid #e0e0e0;
-  min-width: 200px; /* Slightly wider for new font buttons and structure */
-  cursor: default; /* Default for subwindow, grab for drag handle */
+  min-width: 200px;
+  cursor: default;
   user-select: none;
 }
 
-/* ADDED: Drag handle for subwindow */
 .webdraw-subwindow-drag-handle {
-  padding: 6px 10px; /* More padding for easier grab */
-  margin: -10px -10px 8px -10px; /* Extend to edges, add bottom margin */
+  padding: 6px 10px;
+  margin: -10px -10px 8px -10px;
   background-color: #f0f0f0;
   border-bottom: 1px solid #e0e0e0;
-  border-top-left-radius: 6px; /* Match parent */
-  border-top-right-radius: 6px; /* Match parent */
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
   text-align: center;
-  font-size: 12px; /* Slightly larger text */
+  font-size: 12px;
   font-weight: bold;
-  color: #555;
+  color: #555555; /* Ensured dark color */
   cursor: grab;
-  line-height: 1.2; /* Adjust line height */
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Consistent font */
+  line-height: 1.2;
+  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif;
 }
 .webdraw-subwindow-drag-handle:active {
   cursor: grabbing;
@@ -129,56 +129,54 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap; /* Allow wrapping for smaller screens */
+  flex-wrap: wrap;
 }
 
 .webdraw-style-label {
   font-size: 12px;
-  color: #555;
+  color: #555555; /* Ensured dark color */
   margin-right: 4px;
   min-width: 40px;
   text-align: right;
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure label uses Virgil */
+  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Preset Color Buttons */
 .webdraw-color-button {
-  width: 22px; /* Slightly larger */
-  height: 22px; /* Slightly larger */
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
   border: 2px solid transparent;
   cursor: pointer;
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 }
-
 .webdraw-color-button:hover {
   border-color: #a0a0a0;
 }
-
 .webdraw-color-button.active {
-  border-color: #1890ff; /* Bright blue for active color */
-  box-shadow: 0 0 0 1px #1890ff; /* Optional: extra emphasis */
+  border-color: #1890ff;
+  box-shadow: 0 0 0 1px #1890ff;
 }
 
 /* Width Buttons (S/M/L) & Font Size Buttons */
 .webdraw-width-button {
-  /* Also used for Font Size S/M/L */
   font-size: 12px;
   padding: 4px 8px;
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
   background-color: #fff;
-  min-width: 30px; /* Minimum width */
+  min-width: 30px;
   text-align: center;
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure SML uses Virgil */
-  display: flex; /* For aligning text and example line */
-  flex-direction: column; /* Stack text and example line */
+  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: auto; /* Allow height to adjust for content */
+  height: auto;
   line-height: 1.2;
+  color: #333333; /* ADDED: Explicit dark color for S, M, L text */
 }
 .webdraw-width-button:hover {
   background-color: #f0f0f0;
@@ -187,25 +185,25 @@
 .webdraw-width-button.active {
   background-color: #e6f7ff;
   border-color: #91d5ff;
-  color: #1890ff;
+  color: #1890ff; /* Active state color */
 }
 
 /* Width Example Lines */
 .webdraw-width-example {
-  height: 10px; /* Container for the line */
-  width: 20px; /* Width of the example line container */
+  height: 10px;
+  width: 20px;
   display: flex;
   align-items: center;
-  margin-top: 2px; /* Space between S/M/L text and line */
+  margin-top: 2px;
 }
 .webdraw-width-example hr {
   width: 100%;
   border: 0;
   margin: 0;
-  background-color: #555; /* Default color for example line */
+  background-color: #555;
 }
 .webdraw-width-button.active .webdraw-width-example hr {
-  background-color: #1890ff; /* Active color for example line */
+  background-color: #1890ff;
 }
 
 /* Line Style Buttons (Solid/Dotted) */
@@ -218,15 +216,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px; /* Fixed width */
-  height: 24px; /* Fixed height */
+  width: 32px;
+  height: 24px;
   box-sizing: border-box;
 }
 .webdraw-linestyle-button hr {
   width: 80%;
   border: 0;
-  border-top-width: 2px; /* Thickness of the example line */
-  border-top-color: #555; /* Color of the example line */
+  border-top-width: 2px;
+  border-top-color: #555;
   margin: 0;
 }
 .webdraw-linestyle-button:hover {
@@ -238,28 +236,28 @@
   border-color: #91d5ff;
 }
 .webdraw-linestyle-button.active hr {
-  border-top-color: #1890ff; /* Active color for example line */
+  border-top-color: #1890ff;
 }
 
 /* Font Family Buttons */
 .webdraw-font-button {
-  /* font-family will be set inline by JS to preview the font */
-  font-size: 12px; /* Default size for button text if font preview fails */
+  font-size: 12px;
   padding: 4px 8px;
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
   background-color: #fff;
-  flex-grow: 1; /* Allow buttons to grow */
+  flex-grow: 1;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 60px; /* Adjusted for "BigBlue" */
-  height: 24px; /* Match other buttons' height */
+  min-width: 60px;
+  height: 24px;
   box-sizing: border-box;
-  line-height: 1.2; /* Center text vertically */
-  color: #333333; /* ADDED: Explicit dark color for the font name text */
+  line-height: 1.2;
+  color: #333333; /* Ensured dark color for font name */
+  /* font-family is set inline by JS */
 }
 .webdraw-font-button:hover {
   background-color: #f0f0f0;
@@ -268,36 +266,27 @@
 .webdraw-font-button.active {
   background-color: #e6f7ff;
   border-color: #91d5ff;
-  color: #1890ff; /* Active state can have a different color, e.g., blue */
-}
-.webdraw-font-button:hover {
-  background-color: #f0f0f0;
-  border-color: #adadad;
-}
-.webdraw-font-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
-  color: #1890ff;
+  color: #1890ff; /* Active state color for font name */
 }
 
-/* Text Align Buttons */
+/* Text Align Buttons (these use icons, color is for the icon itself) */
 .webdraw-align-button {
-  /* Use Nerd Font for alignment icons */
-  font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif; /* Nerd Font first */
-  font-size: 16px; /* Adjust if using Nerd Font icons */
+  font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
   padding: 4px 8px;
   border: 1px solid #ccc;
   border-radius: 4px;
   cursor: pointer;
   background-color: #fff;
-  min-width: 32px; /* Consistent width */
+  min-width: 32px;
   text-align: center;
-  height: 24px; /* Consistent height */
+  height: 24px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  color: #555555; /* Default icon color */
 }
 .webdraw-align-button:hover {
   background-color: #f0f0f0;
@@ -306,9 +295,8 @@
 .webdraw-align-button.active {
   background-color: #e6f7ff;
   border-color: #91d5ff;
-  color: #1890ff;
+  color: #1890ff; /* Active icon color */
 }
-
 /* Text Input Styling */
 #webDrawTextInput {
   position: absolute;

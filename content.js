@@ -64,7 +64,7 @@ if (!window.webDrawInitialized) {
   const svgs = {
     select: "\uf25a",
     pencil: "\udb83\uddeb",
-    rectangle: "\uf096",
+    rect: "\uf096",
     arrow: "\udb80\udc5c",
     text: "\uF031",
     share: "\uf50f",
@@ -429,76 +429,136 @@ if (!window.webDrawInitialized) {
     const primarySelectedObj =
       selectedDrawingIndex !== null ? drawings[selectedDrawingIndex] : null;
 
-    // Helper function to apply style to one or more selected objects
-    const applyStyleToSelected = (
-      prop,
-      value,
-      isLineDash = false,
-      baseDashIfDotted = null
-    ) => {
-      const targets =
-        multiSelectedIndices.length > 0
-          ? multiSelectedIndices.map((i) => drawings[i])
-          : primarySelectedObj
-          ? [primarySelectedObj]
-          : [];
-
-      if (targets.length > 0) {
-        targets.forEach((obj) => {
-          if (obj && typeof obj[prop] !== "undefined") {
-            if (isLineDash) {
-              obj[prop] = baseDashIfDotted
-                ? getScaledDashArray(
-                    baseDashIfDotted,
-                    obj.lineWidth || currentLineWidth
-                  )
-                : null;
-            } else if (prop === "lineWidth" && obj.lineDash) {
-              // If changing width and object has a dash style
-              obj[prop] = value;
-              obj.lineDash = getScaledDashArray(BASE_DOTTED_PATTERN, value); // Re-scale existing dash
-            } else {
-              obj[prop] = value;
-            }
-          }
-        });
-      } else {
-        // Apply to global current styles if nothing is selected
-        if (isLineDash) {
-          currentLineDash = baseDashIfDotted
-            ? getScaledDashArray(baseDashIfDotted, currentLineWidth)
-            : null;
-        } else if (prop === "lineWidth" && currentLineDash) {
-          currentLineWidth = value;
-          currentLineDash = getScaledDashArray(BASE_DOTTED_PATTERN, value);
-        } else {
-          window[`current${prop.charAt(0).toUpperCase() + prop.slice(1)}`] =
-            value;
-        }
-      }
-      styleChanged = true;
-    };
+    // Determine if any object is "actively" selected for styling
+    // This means either a single primary selection or items in multi-selection
+    const hasActiveSelection =
+      primarySelectedObj || multiSelectedIndices.length > 0;
 
     if (target.dataset.color) {
-      applyStyleToSelected("color", target.dataset.color);
+      const newColor = target.dataset.color;
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx]) drawings[idx].color = newColor;
+        });
+        if (
+          primarySelectedObj &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        )
+          primarySelectedObj.color = newColor; // Apply to primary if not in multi already
+      } else {
+        currentColor = newColor; // Update global
+      }
+      styleChanged = true;
     } else if (target.dataset.width) {
-      applyStyleToSelected("lineWidth", parseInt(target.dataset.width, 10));
+      const newWidth = parseInt(target.dataset.width, 10);
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx]) {
+            drawings[idx].lineWidth = newWidth;
+            if (drawings[idx].lineDash)
+              drawings[idx].lineDash = getScaledDashArray(
+                BASE_DOTTED_PATTERN,
+                newWidth
+              );
+          }
+        });
+        if (
+          primarySelectedObj &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        ) {
+          primarySelectedObj.lineWidth = newWidth;
+          if (primarySelectedObj.lineDash)
+            primarySelectedObj.lineDash = getScaledDashArray(
+              BASE_DOTTED_PATTERN,
+              newWidth
+            );
+        }
+      } else {
+        currentLineWidth = newWidth; // Update global
+        if (currentLineDash)
+          currentLineDash = getScaledDashArray(BASE_DOTTED_PATTERN, newWidth);
+      }
+      styleChanged = true;
     } else if (target.dataset.linedash) {
-      applyStyleToSelected(
-        "lineDash",
-        null,
-        true,
-        JSON.parse(target.dataset.linedash)
-      );
+      const baseDash = JSON.parse(target.dataset.linedash);
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx])
+            drawings[idx].lineDash = baseDash
+              ? getScaledDashArray(
+                  baseDash,
+                  drawings[idx].lineWidth || currentLineWidth
+                )
+              : null;
+        });
+        if (
+          primarySelectedObj &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        ) {
+          primarySelectedObj.lineDash = baseDash
+            ? getScaledDashArray(
+                baseDash,
+                primarySelectedObj.lineWidth || currentLineWidth
+              )
+            : null;
+        }
+      } else {
+        currentLineDash = baseDash
+          ? getScaledDashArray(baseDash, currentLineWidth)
+          : null; // Update global
+      }
+      styleChanged = true;
     } else if (target.dataset.fontkey) {
-      applyStyleToSelected(
-        "fontFamily",
-        FONT_FAMILY_MAP[target.dataset.fontkey]
-      );
+      const newFontFamily = FONT_FAMILY_MAP[target.dataset.fontkey];
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx] && drawings[idx].type === "text")
+            drawings[idx].fontFamily = newFontFamily;
+        });
+        if (
+          primarySelectedObj &&
+          primarySelectedObj.type === "text" &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        )
+          primarySelectedObj.fontFamily = newFontFamily;
+      } else {
+        currentFontFamily = newFontFamily; // Update global
+      }
+      styleChanged = true;
     } else if (target.dataset.fontsize) {
-      applyStyleToSelected("fontSize", target.dataset.fontsize);
+      const newFontSize = target.dataset.fontsize;
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx] && drawings[idx].type === "text")
+            drawings[idx].fontSize = newFontSize;
+        });
+        if (
+          primarySelectedObj &&
+          primarySelectedObj.type === "text" &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        )
+          primarySelectedObj.fontSize = newFontSize;
+      } else {
+        currentFontSize = newFontSize; // Update global
+      }
+      styleChanged = true;
     } else if (target.dataset.align) {
-      applyStyleToSelected("textAlign", target.dataset.align);
+      const newAlign = target.dataset.align;
+      if (hasActiveSelection) {
+        multiSelectedIndices.forEach((idx) => {
+          if (drawings[idx] && drawings[idx].type === "text")
+            drawings[idx].textAlign = newAlign;
+        });
+        if (
+          primarySelectedObj &&
+          primarySelectedObj.type === "text" &&
+          !multiSelectedIndices.includes(selectedDrawingIndex)
+        )
+          primarySelectedObj.textAlign = newAlign;
+      } else {
+        currentTextAlign = newAlign; // Update global
+      }
+      styleChanged = true;
     }
 
     if (styleChanged) {
@@ -508,16 +568,17 @@ if (!window.webDrawInitialized) {
       target.classList.add("active");
 
       if (target.dataset.linedash) {
-        const currentActiveDash = primarySelectedObj
-          ? primarySelectedObj.lineDash
-          : currentLineDash;
+        const activeDashToCompare =
+          hasActiveSelection && primarySelectedObj
+            ? primarySelectedObj.lineDash
+            : currentLineDash;
         parentSection
           .querySelectorAll("button[data-linedash]")
           .forEach((btn) => {
             const btnDashVal = JSON.parse(btn.dataset.linedash);
             const btnIsDottedIntent = btnDashVal !== null;
             const currentIsDotted =
-              currentActiveDash !== null && currentActiveDash.length > 0;
+              activeDashToCompare !== null && activeDashToCompare.length > 0;
             btn.classList.toggle(
               "active",
               btnIsDottedIntent === currentIsDotted
@@ -525,10 +586,20 @@ if (!window.webDrawInitialized) {
           });
       }
 
-      if (primarySelectedObj || multiSelectedIndices.length > 0) {
+      if (hasActiveSelection) {
         saveDrawings();
         redrawCanvas();
       }
+      console.log("Style updated. Globals:", {
+        currentColor,
+        currentLineWidth,
+        currentLineDash,
+        currentFontFamily,
+        currentFontSize,
+        currentTextAlign,
+      });
+      if (primarySelectedObj)
+        console.log("Primary Selected Obj Style:", primarySelectedObj);
     }
   }
 
