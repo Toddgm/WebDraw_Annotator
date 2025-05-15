@@ -1,40 +1,44 @@
 {
-  "manifest_version": 3,
-  "name": "WebDraw Annotator",
-  "version": "1.0",
-  "description": "Draw, highlight, and add text callouts directly on web pages.",
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "storage"
-  ],
-  "action": {
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    },
-    "default_title": "Activate WebDraw"
-  },
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content_loader.js"]
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["content.js", "content.css", "fonts/*"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+"manifest_version": 3,
+"name": "WebDraw Annotator",
+"version": "1.0",
+"description": "Draw, highlight, and add text callouts directly on web pages.",
+"permissions": [
+"activeTab",
+"scripting",
+"storage"
+],
+"host_permissions": [
+    "https://api.cloudinary.com/"
+],
+"action": {
+"default_icon": {
+"16": "icons/icon16.png",
+"48": "icons/icon48.png",
+"128": "icons/icon128.png"
+},
+"default_title": "Activate WebDraw"
+},
+"background": {
+"service_worker": "background.js",
+"type": "module"
+},
+"icons": {
+"16": "icons/icon16.png",
+"48": "icons/icon48.png",
+"128": "icons/icon128.png"
+},
+"content_scripts": [
+{
+"matches": ["<all_urls>"],
+"js": ["content_loader.js"],
+"run_at": "document_start"
+}
+],
+"web_accessible_resources": [
+{
+"resources": ["content.js", "content.css", "fonts/*"],
+"matches": ["<all_urls>"]
+}
+]
 }
