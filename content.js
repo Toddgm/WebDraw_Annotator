@@ -13,12 +13,18 @@ if (!window.webDrawInitialized) {
   let notificationTimeout = null;
   let confirmationDiv = null; // For custom confirmation
   let textInputDiv = null;
+
   let isDrawing = false;
   let isDraggingToolbox = false;
+  let isDraggingSubwindow = false; // Flag for dragging style subwindow
   let isDraggingObject = false;
+  let isSelectingArea = false; // Flag for area selection
+
   let toolboxOffsetX, toolboxOffsetY;
+  let subwindowOffsetX, subwindowOffsetY; // For subwindow dragging
   let startX, startY; // Document coords for drawing start
   let dragStartX, dragStartY, initialObjectPos; // Page coords for dragging delta
+  let selectionAreaRect = null; // For drawing selection area preview {x, y, width, height} in document coords
 
   let currentTool = "pencil";
 
@@ -34,7 +40,8 @@ if (!window.webDrawInitialized) {
 
   let currentColor = PRESET_COLORS[0];
   let currentLineWidth = WIDTH_MAP.M;
-  let currentLineDash = null;
+  let currentLineDash = null; // Can be an array like [4, 4]
+  const BASE_DOTTED_PATTERN = [4, 4]; // Base pattern for dotted lines
   let currentFontFamily = FONT_FAMILY_MAP.Virgil;
   let currentFontSize = FONT_SIZE_MAP.M;
   let currentTextAlign = "left";
@@ -43,18 +50,16 @@ if (!window.webDrawInitialized) {
   let selectedDrawingIndex = null;
   const PAGE_STORAGE_KEY_PREFIX = "webDraw_";
 
-  // define all icons used here
+  // Nerd Font Icons (Unicode characters)
   const svgs = {
-    // Changed Select Icon to a standard pointer
-    select: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M402-40q-30 0-56-13.5T303-92L48-465l24-23q19-19 45-22t47 12l116 81v-383q0-17 11.5-28.5T320-840q17 0 28.5 11.5T360-800v537L212-367l157 229q5 8 14 13t19 5h278q33 0 56.5-23.5T760-200v-560q0-17 11.5-28.5T800-800q17 0 28.5 11.5T840-760v560q0 66-47 113T680-40H402Zm38-440v-400q0-17 11.5-28.5T480-920q17 0 28.5 11.5T520-880v400h-80Zm160 0v-360q0-17 11.5-28.5T640-880q17 0 28.5 11.5T680-840v360h-80ZM486-300Z"/></svg>`,
-    select: "\udb83\udf22",
-    pencil: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M80 0v-160h800V0H80Zm160-320h56l312-311-29-29-28-28-311 312v56Zm-80 80v-170l448-447q11-11 25.5-17t30.5-6q16 0 31 6t27 18l55 56q12 11 17.5 26t5.5 31q0 15-5.5 29.5T777-687L330-240H160Zm560-504-56-56 56 56ZM608-631l-29-29-28-28 57 57Z"/></svg>`,
-    rectangle: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Z"/></svg>`,
-    arrow: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`,
-    text: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M280-160v-520H80v-120h520v120H400v520H280Zm360 0v-320H520v-120h360v120H760v320H640Z"/></svg>`,
-    share: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5T240-360q-50 0-85-35t-35-85q0-50 35-85t85-35q21 0 42 8.5t38 23.5l282-164q-2-6-2.5-12.5T600-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-21 0-42-8.5T638-672L356-508q2 6 2.5 12.5t.5 13.5q0 7-1 13.5t-3 12.5l282 164q17-15 38-23.5t42-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Zm0-80q17 0 28.5-11.5T760-200q0-17-11.5-28.5T720-240q-17 0-28.5 11.5T680-200q0 17 11.5 28.5T720-160ZM240-440q17 0 28.5-11.5T280-480q0-17-11.5-28.5T240-520q-17 0-28.5 11.5T200-480q0 17 11.5 28.5T240-440Zm480-280q17 0 28.5-11.5T760-760q0-17-11.5-28.5T720-800q-17 0-28.5 11.5T680-760q0 17 11.5 28.5T720-720Zm0 520ZM240-480Zm480-280Z"/></svg>`,
-    clear: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520Zm-400 0v520-520Z"/></svg>`,
-    exit: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-160h80v160h560v-560H200v160h-80v-160q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm220-160-56-58 102-102H120v-80h346L364-622l56-58 200 200-200 200Z"/></svg>`,
+    select: "\uf25a", // nf-fa-mouse_pointer (replaces complex SVG and old surrogate pair)
+    pencil: "\udb83\uddeb", // nf-mdi-pencil
+    rectangle: "\uf096", // nf-mdi-rectangle_outline
+    arrow: "\udb80\udc5c", // nf-mdi-arrow_right_thin
+    text: "\uF031", // nf-fa-font
+    share: "\uf50f", // nf-mdi-share_variant
+    clear: "\uF1F8", // nf-fa-trash
+    exit: "\uF08B", // nf-fa-sign_out
   };
 
   // --- Initialization ---
@@ -63,7 +68,7 @@ if (!window.webDrawInitialized) {
     console.log("WebDraw: Initializing...");
     if (!createCanvas()) return false;
     createToolbox();
-    addEventListeners(); // Add listeners *after* elements exist
+    addEventListeners(); // Add listeners after elements exist
     loadDrawings();
     isActive = true;
     setCursorForTool(currentTool);
@@ -116,24 +121,14 @@ if (!window.webDrawInitialized) {
   }
 
   function createToolbox() {
-    // ... (no changes to HTML structure) ...
+    // ... (no changes to HTML structure other than using new svgs object) ...
     if (document.getElementById("webDrawToolbox")) {
       console.warn("WebDraw: Toolbox already exists.");
       return;
     }
     toolbox = document.createElement("div");
     toolbox.id = "webDrawToolbox";
-    toolbox.innerHTML = `
-          <div class="webdraw-title" title="Drag to move">WebDraw</div>
-          <button data-tool="select" class="webdraw-button" title="Select (S)">${svgs.select}</button>
-          <button data-tool="pencil" class="webdraw-button" title="Pencil (P)">${svgs.pencil}</button>
-          <button data-tool="rect" class="webdraw-button" title="Rectangle (R)">${svgs.rectangle}</button>
-          <button data-tool="arrow" class="webdraw-button" title="Arrow (A)">${svgs.arrow}</button>
-          <button data-tool="text" class="webdraw-button" title="Text (T)"> ${svgs.text} </button>
-          <button data-tool="share" class="webdraw-button" title="Share Screenshot">${svgs.share}</button>
-          <button data-tool="clear" class="webdraw-button" title="Delete Selected / Clear All">${svgs.clear}</button>
-          <button data-tool="exit" class="webdraw-button" title="Exit (Esc)">${svgs.exit}</button>
-      `;
+    toolbox.innerHTML = `<div class="webdraw-title" title="Drag to move">WebDraw</div> <button data-tool="select" class="webdraw-button" title="Select (S)">${svgs.select}</button> <button data-tool="pencil" class="webdraw-button" title="Pencil (P)">${svgs.pencil}</button> <button data-tool="rect" class="webdraw-button" title="Rectangle (R)">${svgs.rectangle}</button> <button data-tool="arrow" class="webdraw-button" title="Arrow (A)">${svgs.arrow}</button> <button data-tool="text" class="webdraw-button" title="Text (T)"> ${svgs.text} </button> <button data-tool="share" class="webdraw-button" title="Share Screenshot">${svgs.share}</button> <button data-tool="clear" class="webdraw-button" title="Delete Selected / Clear All">${svgs.clear}</button> <button data-tool="exit" class="webdraw-button" title="Exit (Esc)">${svgs.exit}</button>`;
     document.body.appendChild(toolbox);
     console.log("WebDraw: Toolbox created.");
 
@@ -161,6 +156,25 @@ if (!window.webDrawInitialized) {
     e.preventDefault();
   }
 
+  // --- Subwindow Drag Handling ---
+  function handleSubwindowDragStart(e) {
+    if (e.button !== 0 || e.target.closest("button")) return; // Don't drag if clicking a button inside
+    isDraggingSubwindow = true;
+    const rect = styleSubwindow.getBoundingClientRect();
+    // Calculate offset from viewport coordinates
+    subwindowOffsetX = e.clientX - rect.left;
+    subwindowOffsetY = e.clientY - rect.top;
+
+    const dragHandle = styleSubwindow.querySelector(
+      ".webdraw-subwindow-drag-handle"
+    );
+    if (dragHandle) dragHandle.style.cursor = "grabbing";
+
+    document.addEventListener("mousemove", handleDocumentMouseMove);
+    document.addEventListener("mouseup", handleDocumentMouseUp);
+    e.preventDefault();
+  }
+
   function handleDocumentMouseMove(e) {
     if (isDraggingToolbox && toolbox) {
       let newLeft = e.clientX - toolboxOffsetX;
@@ -171,8 +185,24 @@ if (!window.webDrawInitialized) {
       newTop = Math.max(5, Math.min(newTop, maxTop));
       toolbox.style.left = `${newLeft}px`;
       toolbox.style.top = `${newTop}px`;
-    } else if (isDrawing || isDraggingObject) {
-      // Route drawing/object dragging mouse moves ONLY
+    } else if (isDraggingSubwindow && styleSubwindow) {
+      let newLeft = e.clientX - subwindowOffsetX;
+      let newTop = e.clientY - subwindowOffsetY;
+
+      // Boundary checks for subwindow (relative to viewport)
+      const maxLeft = window.innerWidth - styleSubwindow.offsetWidth - 5;
+      const maxTop = window.innerHeight - styleSubwindow.offsetHeight - 5;
+      newLeft = Math.max(5, Math.min(newLeft, maxLeft));
+      newTop = Math.max(5, Math.min(newTop, maxTop));
+
+      styleSubwindow.style.left = `${newLeft}px`;
+      styleSubwindow.style.top = `${newTop}px`; // These are viewport-relative
+    } else if (
+      isDrawing ||
+      isDraggingObject ||
+      (currentTool === "select" && isSelectingArea)
+    ) {
+      // Route drawing/object dragging/area selection mouse moves
       handleDrawingMouseMove(e);
     }
   }
@@ -182,18 +212,27 @@ if (!window.webDrawInitialized) {
       isDraggingToolbox = false;
       const titleElement = toolbox.querySelector(".webdraw-title");
       if (titleElement) titleElement.style.cursor = "grab"; // Restore cursor
-      // Remove listeners added in handleToolboxDragStart
       document.removeEventListener("mousemove", handleDocumentMouseMove);
       document.removeEventListener("mouseup", handleDocumentMouseUp);
-    } else if (isDrawing || isDraggingObject) {
-      // Route drawing/object dragging mouse up
+    } else if (isDraggingSubwindow) {
+      isDraggingSubwindow = false;
+      const dragHandle = styleSubwindow?.querySelector(
+        ".webdraw-subwindow-drag-handle"
+      );
+      if (dragHandle) dragHandle.style.cursor = "grab";
+      document.removeEventListener("mousemove", handleDocumentMouseMove);
+      document.removeEventListener("mouseup", handleDocumentMouseUp);
+    } else if (
+      isDrawing ||
+      isDraggingObject ||
+      (currentTool === "select" && isSelectingArea)
+    ) {
+      // Route drawing/object dragging/area selection mouse up
       handleDrawingMouseUp(e);
     }
   }
 
   // --- Style Sub-window ---
-  // createOrShowStyleSubWindow, hideAllStyleSubWindows, positionSubwindow, handleStyleSubwindowClick
-  // ... (no changes from previous version) ...
   function hideAllStyleSubWindows() {
     if (styleSubwindow) {
       styleSubwindow.remove();
@@ -207,7 +246,8 @@ if (!window.webDrawInitialized) {
     styleSubwindow = document.createElement("div");
     styleSubwindow.id = "webDrawStyleSubwindow";
 
-    let contentHTML = "";
+    // ADDED: Drag Handle
+    let contentHTML = `<div class="webdraw-subwindow-drag-handle" title="Drag to move">Style Options</div>`;
 
     // --- Common Controls: Color ---
     const createColorButtons = () => {
@@ -232,15 +272,15 @@ if (!window.webDrawInitialized) {
         const pxValue = WIDTH_MAP[sizeKey];
         const isActive = pxValue === currentLineWidth;
         contentHTML += `
-                  <button class="webdraw-width-button ${
-                    isActive ? "active" : ""
-                  }" data-width="${pxValue}" title="${pxValue}px">
-                      ${sizeKey}
-                      <span class="webdraw-width-example"><hr style="height: ${Math.max(
-                        1,
-                        pxValue
-                      )}px;"></span>
-                  </button>`;
+              <button class="webdraw-width-button ${
+                isActive ? "active" : ""
+              }" data-width="${pxValue}" title="${pxValue}px">
+                  ${sizeKey}
+                  <span class="webdraw-width-example"><hr style="height: ${Math.max(
+                    1,
+                    pxValue
+                  )}px;"></span>
+              </button>`;
       });
       contentHTML += `</div>`;
 
@@ -248,20 +288,30 @@ if (!window.webDrawInitialized) {
       contentHTML += `<div class="webdraw-style-section"><span class="webdraw-style-label">Style:</span>`;
       const styles = [
         { name: "Solid", dash: null },
-        { name: "Dotted", dash: [4, 4] },
+        { name: "Dotted", dash: BASE_DOTTED_PATTERN }, // Use base pattern for UI display
       ];
       styles.forEach((style) => {
-        const isActive =
-          JSON.stringify(style.dash) === JSON.stringify(currentLineDash);
+        // Check if currentLineDash matches the (potentially scaled) version of this style's dash
+        let isActive = false;
+        if (style.dash === null && currentLineDash === null) {
+          isActive = true;
+        } else if (style.dash && currentLineDash) {
+          // For dotted, check if currentLineDash is a scaled version of BASE_DOTTED_PATTERN
+          // This is a simplified check; actual currentLineDash could be scaled.
+          // A more robust check would compare the "intent" (dotted) rather than exact array.
+          // For UI, it's fine to just check if currentLineDash is not null if style.dash is not null.
+          if (currentLineDash) isActive = true; // If currentLineDash is set, Dotted is active.
+        }
+
         const borderStyle = style.dash ? "dashed" : "solid";
         contentHTML += `
-                  <button class="webdraw-linestyle-button ${
-                    isActive ? "active" : ""
-                  }" data-linedash="${JSON.stringify(style.dash)}" title="${
+              <button class="webdraw-linestyle-button ${
+                isActive ? "active" : ""
+              }" data-linedash="${JSON.stringify(style.dash)}" title="${
           style.name
         }">
-                     <hr style="border-top-style: ${borderStyle};">
-                  </button>`;
+                 <hr style="border-top-style: ${borderStyle};">
+              </button>`;
       });
       contentHTML += `</div>`;
     }
@@ -276,11 +326,11 @@ if (!window.webDrawInitialized) {
         const isActive = fontFamilyValue === currentFontFamily;
         const displayName = name;
         contentHTML += `
-                  <button class="webdraw-font-button ${
-                    isActive ? "active" : ""
-                  }" data-fontfamily="${fontFamilyValue}" title="${name}" style="font-family: ${fontFamilyValue};">
-                      ${displayName}
-                  </button>`;
+              <button class="webdraw-font-button ${
+                isActive ? "active" : ""
+              }" data-fontfamily="${fontFamilyValue}" title="${name}" style="font-family: ${fontFamilyValue};">
+                  ${displayName}
+              </button>`;
       });
       contentHTML += `</div>`;
 
@@ -290,45 +340,93 @@ if (!window.webDrawInitialized) {
         const pxValue = FONT_SIZE_MAP[sizeKey];
         const isActive = pxValue === currentFontSize;
         contentHTML += `
-                  <button class="webdraw-width-button ${
-                    isActive ? "active" : ""
-                  }" data-fontsize="${pxValue}" title="${pxValue}">
-                      ${sizeKey}
-                  </button>`;
+              <button class="webdraw-width-button ${
+                // Re-use width-button class for S/M/L text size
+                isActive ? "active" : ""
+              }" data-fontsize="${pxValue}" title="${pxValue}">
+                  ${sizeKey}
+              </button>`;
       });
       contentHTML += `</div>`;
 
       // Text Align Controls
       contentHTML += `<div class="webdraw-style-section"><span class="webdraw-style-label">Align:</span>`;
       const aligns = [
-        { name: "Left", value: "left" },
-        { name: "Center", value: "center" },
-        { name: "Right", value: "right" },
+        // Using Nerd Font characters for align icons
+        { name: "Left", value: "left", icon: "\uF036" /* nf-fa-align_left */ },
+        {
+          name: "Center",
+          value: "center",
+          icon: "\uF037" /* nf-fa-align_center */,
+        },
+        {
+          name: "Right",
+          value: "right",
+          icon: "\uF038" /* nf-fa-align_right */,
+        },
       ];
       aligns.forEach((align) => {
         const isActive = align.value === currentTextAlign;
-        const icon = align.name.substring(0, 1);
         contentHTML += `
-                  <button class="webdraw-align-button ${
-                    isActive ? "active" : ""
-                  }" data-align="${align.value}" title="${align.name}">
-                      ${icon}
-                  </button>`;
+              <button class="webdraw-align-button ${
+                // Ensure this button uses Nerd Font
+                isActive ? "active" : ""
+              }" data-align="${align.value}" title="${align.name}">
+                  ${align.icon}
+              </button>`;
       });
       contentHTML += `</div>`;
     }
 
     styleSubwindow.innerHTML = contentHTML;
-    styleSubwindow.addEventListener("click", handleStyleSubwindowClick);
+
+    // Add mousedown listener to the drag handle
+    const dragHandle = styleSubwindow.querySelector(
+      ".webdraw-subwindow-drag-handle"
+    );
+    if (dragHandle) {
+      dragHandle.addEventListener("mousedown", handleSubwindowDragStart);
+    }
+
+    styleSubwindow.addEventListener("click", handleStyleSubwindowClick); // For style buttons
     document.body.appendChild(styleSubwindow);
     positionSubwindow();
   }
 
   function positionSubwindow() {
     if (!styleSubwindow || !toolbox) return;
+
+    // If subwindow is being dragged, its position is handled by handleDocumentMouseMove
+    if (isDraggingSubwindow) return;
+
     const toolboxRect = toolbox.getBoundingClientRect();
-    styleSubwindow.style.left = `${toolboxRect.left}px`;
-    styleSubwindow.style.top = `${toolboxRect.bottom + window.scrollY + 5}px`; // Position below toolbox
+    // Position subwindow based on fixed toolbox position (viewport relative)
+    // And add current scrollY to account for page scroll if toolbox were absolute
+    // Since toolbox IS fixed, scrollY is not strictly needed here but good for robustness if that changes.
+    let topPos = toolboxRect.bottom + 5; // 5px below toolbox
+    let leftPos = toolboxRect.left;
+
+    // Ensure subwindow stays within viewport
+    const subwindowWidth = styleSubwindow.offsetWidth;
+    const subwindowHeight = styleSubwindow.offsetHeight;
+
+    if (leftPos + subwindowWidth > window.innerWidth - 5) {
+      leftPos = window.innerWidth - subwindowWidth - 5;
+    }
+    if (topPos + subwindowHeight > window.innerHeight - 5) {
+      topPos = window.innerHeight - subwindowHeight - 5;
+    }
+    leftPos = Math.max(5, leftPos);
+    topPos = Math.max(5, topPos);
+
+    styleSubwindow.style.left = `${leftPos}px`;
+    styleSubwindow.style.top = `${topPos}px`;
+  }
+
+  function getScaledDashArray(baseDashArray, lineWidth) {
+    if (!baseDashArray) return null; // Solid line
+    const scaleFactor = Math.max(1, lineWidth / 4); // Adjust divisor (e.g., 4) as needed
+    return [baseDashArray[0] * scaleFactor, baseDashArray[1] * scaleFactor];
   }
 
   function handleStyleSubwindowClick(e) {
@@ -338,29 +436,83 @@ if (!window.webDrawInitialized) {
     if (!parentSection) return;
 
     // Update state
-    if (target.dataset.color) currentColor = target.dataset.color;
-    else if (target.dataset.width)
+    if (target.dataset.color) {
+      currentColor = target.dataset.color;
+    } else if (target.dataset.width) {
       currentLineWidth = parseInt(target.dataset.width, 10);
-    else if (target.dataset.linedash)
-      currentLineDash = JSON.parse(target.dataset.linedash);
-    else if (target.dataset.fontfamily)
+      // If a dash style is active, update it based on the new width
+      if (currentLineDash) {
+        // currentLineDash is not null, meaning a dash style is active
+        currentLineDash = getScaledDashArray(
+          BASE_DOTTED_PATTERN,
+          currentLineWidth
+        );
+      }
+    } else if (target.dataset.linedash) {
+      const baseDash = JSON.parse(target.dataset.linedash); // e.g., [4,4] or null
+      if (baseDash) {
+        // If it's a dash array (e.g., Dotted was clicked)
+        currentLineDash = getScaledDashArray(baseDash, currentLineWidth);
+      } else {
+        // Solid was clicked
+        currentLineDash = null;
+      }
+    } else if (target.dataset.fontfamily) {
       currentFontFamily = target.dataset.fontfamily;
-    else if (target.dataset.fontsize) currentFontSize = target.dataset.fontsize;
-    else if (target.dataset.align) currentTextAlign = target.dataset.align;
-    else return;
+    } else if (target.dataset.fontsize) {
+      currentFontSize = target.dataset.fontsize;
+    } else if (target.dataset.align) {
+      currentTextAlign = target.dataset.align;
+    } else {
+      return; // Not a style-modifying button
+    }
 
-    // Update UI
+    // Update UI in the subwindow
     parentSection
       .querySelectorAll("button")
       .forEach((btn) => btn.classList.remove("active"));
     target.classList.add("active");
 
+    // Special handling for line style button activation:
+    // If 'Solid' (data-linedash="null") is clicked, it becomes active.
+    // If 'Dotted' (data-linedash="[...]") is clicked, it becomes active.
+    // Need to make sure only one is active.
+    if (target.dataset.linedash) {
+      parentSection.querySelectorAll("button[data-linedash]").forEach((btn) => {
+        const btnDash = JSON.parse(btn.dataset.linedash);
+        const currentIsDotted = currentLineDash !== null;
+        const btnIsDotted = btnDash !== null;
+        if (currentIsDotted === btnIsDotted) {
+          // If current style matches button's intended style (dotted or solid)
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
+    }
+
     // Apply to selected drawing if any
     if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
       const selected = drawings[selectedDrawingIndex];
       if (target.dataset.color) selected.color = currentColor;
-      if (target.dataset.width) selected.lineWidth = currentLineWidth;
-      if (target.dataset.linedash) selected.lineDash = currentLineDash;
+      if (target.dataset.width) {
+        selected.lineWidth = currentLineWidth;
+        // If selected drawing had a dash, update it too
+        if (selected.lineDash) {
+          selected.lineDash = getScaledDashArray(
+            BASE_DOTTED_PATTERN,
+            selected.lineWidth
+          );
+        }
+      }
+      if (target.dataset.linedash) {
+        // If "Solid" is chosen, lineDash becomes null
+        // If "Dotted" is chosen, lineDash becomes the scaled pattern
+        const baseDash = JSON.parse(target.dataset.linedash);
+        selected.lineDash = baseDash
+          ? getScaledDashArray(baseDash, selected.lineWidth || currentLineWidth)
+          : null;
+      }
       if (target.dataset.fontfamily) selected.fontFamily = currentFontFamily;
       if (target.dataset.fontsize) selected.fontSize = currentFontSize;
       if (target.dataset.align) selected.textAlign = currentTextAlign;
@@ -400,9 +552,15 @@ if (!window.webDrawInitialized) {
 
     // --- Tool Switching Logic ---
     if (currentTool === tool) {
-      // If clicking the active tool again, maybe toggle subwindow? For now, do nothing.
-      if (styleSubwindow) hideAllStyleSubWindows();
-      else createOrShowStyleSubWindow(tool);
+      // If clicking the active tool again, toggle subwindow
+      if (
+        styleSubwindow &&
+        ["pencil", "rect", "arrow", "text"].includes(tool)
+      ) {
+        hideAllStyleSubWindows();
+      } else if (["pencil", "rect", "arrow", "text"].includes(tool)) {
+        createOrShowStyleSubWindow(tool);
+      }
       return;
     }
 
@@ -411,8 +569,14 @@ if (!window.webDrawInitialized) {
 
     currentTool = tool;
     targetButton.classList.add("active");
-    selectedDrawingIndex = null;
+    selectedDrawingIndex = null; // Deselect object when switching tools
     isDraggingObject = false;
+    if (isSelectingArea) {
+      // If was in area selection mode, cancel it
+      isSelectingArea = false;
+      selectionAreaRect = null;
+    }
+
     setCursorForTool(currentTool);
     if (textInputDiv) removeTextInput();
 
@@ -424,7 +588,7 @@ if (!window.webDrawInitialized) {
     }
 
     console.log("Selected tool:", currentTool);
-    redrawCanvas(); // Redraw mainly to clear selection highlight
+    redrawCanvas(); // Redraw mainly to clear selection highlight or selection area
   }
 
   function setCursorForTool(tool) {
@@ -440,8 +604,8 @@ if (!window.webDrawInitialized) {
         canvas.style.cursor = "text";
         break;
       case "select":
-        canvas.style.cursor = "default";
-        break; // Hover handled elsewhere
+        canvas.style.cursor = "default"; // For area selection, could be crosshair too, but default is fine.
+        break;
       default:
         canvas.style.cursor = "default";
     }
@@ -455,7 +619,6 @@ if (!window.webDrawInitialized) {
     // Listen for mousedown directly on the canvas to initiate drawing/selection
     canvas.addEventListener("mousedown", handleCanvasMouseDown);
     // Mouse move/up are handled by document listeners added during drags (toolbox or drawing)
-    // canvas.addEventListener("mouseleave", handleMouseLeave); // Revisit if needed
 
     window.addEventListener("scroll", handleScroll);
     window.addEventListener("resize", handleResize);
@@ -467,7 +630,6 @@ if (!window.webDrawInitialized) {
     console.log("WebDraw: Removing event listeners.");
     if (canvas) {
       canvas.removeEventListener("mousedown", handleCanvasMouseDown);
-      // canvas.removeEventListener("mouseleave", handleMouseLeave);
     }
     // Remove document listeners if they were added
     document.removeEventListener("mousemove", handleDocumentMouseMove);
@@ -477,6 +639,13 @@ if (!window.webDrawInitialized) {
     if (titleElement) {
       titleElement.removeEventListener("mousedown", handleToolboxDragStart);
     }
+    // Remove subwindow drag listener
+    const dragHandle = styleSubwindow?.querySelector(
+      ".webdraw-subwindow-drag-handle"
+    );
+    if (dragHandle) {
+      dragHandle.removeEventListener("mousedown", handleSubwindowDragStart);
+    }
 
     window.removeEventListener("scroll", handleScroll);
     window.removeEventListener("resize", handleResize);
@@ -485,7 +654,10 @@ if (!window.webDrawInitialized) {
 
   function handleScroll() {
     requestAnimationFrame(redrawCanvas);
-    positionSubwindow();
+    if (!isDraggingSubwindow) {
+      // Don't reposition subwindow if user is dragging it
+      positionSubwindow();
+    }
   }
   function handleResize() {
     // ... (no changes) ...
@@ -508,7 +680,9 @@ if (!window.webDrawInitialized) {
     ctx.lineCap = "round";
     ctx.lineJoin = "round"; // Reset context properties
     requestAnimationFrame(redrawCanvas);
-    positionSubwindow();
+    if (!isDraggingSubwindow) {
+      positionSubwindow();
+    }
   }
 
   function handleKeyDown(e) {
@@ -521,12 +695,28 @@ if (!window.webDrawInitialized) {
         hideAllStyleSubWindows();
       } else if (textInputDiv) {
         removeTextInput();
-      } else if (isDrawing || isDraggingObject) {
+      } else if (isDrawing || isDraggingObject || isSelectingArea) {
         isDrawing = false;
         isDraggingObject = false;
+        isSelectingArea = false;
+        selectionAreaRect = null;
         initialObjectPos = null; // Clear reference
-        // If drawing was in progress, remove the incomplete drawing entry
-        if (currentTool !== "select") drawings.pop();
+        // If drawing was in progress (not select tool), remove the incomplete drawing entry
+        if (currentTool !== "select" && isDrawing && drawings.length > 0) {
+          const lastDrawing = drawings[drawings.length - 1];
+          // Only pop if it was a very recently added point for pencil, or if it's not text.
+          // This logic might need refinement based on how drawing pushes elements.
+          if (lastDrawing.type === "pencil" && lastDrawing.points.length <= 1) {
+            drawings.pop();
+          } else if (
+            lastDrawing.type !== "pencil" &&
+            lastDrawing.type !== "text"
+          ) {
+            // For rect/arrow, they are pushed on mouseup. if escape during draw, they are not pushed yet.
+            // This pop here would be for a scenario where it WAS pushed.
+            // The current logic pushes rect/arrow on mouseup, so this pop might be redundant if escape cancels before mouseup.
+          }
+        }
         redrawCanvas();
       } else {
         deactivateDrawing();
@@ -539,7 +729,7 @@ if (!window.webDrawInitialized) {
         return;
       if (isActive && selectedDrawingIndex !== null) {
         e.preventDefault();
-        deleteSelectedDrawingWithConfirmation(); // Use the function which now shows custom confirm
+        handleDelete(); // This now calls the complex confirmation flow
       }
     } else if (
       !e.ctrlKey &&
@@ -579,13 +769,19 @@ if (!window.webDrawInitialized) {
 
   // --- Drawing Event Handlers ---
 
-  // Renamed from handleMouseDown to clarify it's for the canvas element
   function handleCanvasMouseDown(e) {
-    if (e.button !== 0 || !ctx || !canvas || isDraggingToolbox) return; // Ignore if dragging toolbox
+    if (
+      e.button !== 0 ||
+      !ctx ||
+      !canvas ||
+      isDraggingToolbox ||
+      isDraggingSubwindow
+    )
+      return;
     if (styleSubwindow && styleSubwindow.contains(e.target)) return; // Ignore clicks in subwindow
 
     const docCoords = getDocumentRelativeCoords(e);
-    const canvasCoords = getCanvasRelativeCoords(e);
+    const canvasCoords = getCanvasRelativeCoords(e); // For hit detection
     console.log(
       `handleCanvasMouseDown: Tool: ${currentTool}, Doc(${docCoords.x},${docCoords.y}), Canvas(${canvasCoords.x},${canvasCoords.y})`
     );
@@ -594,12 +790,15 @@ if (!window.webDrawInitialized) {
     startY = docCoords.y;
     dragStartX = e.pageX; // Page coords for delta calculation start
     dragStartY = e.pageY;
+
     isDrawing = false;
     isDraggingObject = false;
+    isSelectingArea = false;
+    selectionAreaRect = null;
 
     if (currentTool === "select") {
       const clickedIndex = findClickedDrawingIndex(
-        canvasCoords.x,
+        canvasCoords.x, // Use canvas-relative for hit detection
         canvasCoords.y
       );
       if (clickedIndex !== null) {
@@ -614,11 +813,15 @@ if (!window.webDrawInitialized) {
         else initialObjectPos = { x: obj.x, y: obj.y };
         console.log("Selection: Started dragging index", selectedDrawingIndex);
       } else {
-        selectedDrawingIndex = null; // Deselect if clicked empty space
-        console.log("Selection: Clicked empty space");
+        // Clicked on empty space with select tool: Start Area Selection
+        selectedDrawingIndex = null; // Deselect if previously selected
+        isSelectingArea = true;
+        selectionAreaRect = { x: startX, y: startY, width: 0, height: 0 }; // Init selection rect
+        console.log("Selection: Clicked empty space, starting area selection.");
       }
-      redrawCanvas(); // Show selection change
+      redrawCanvas(); // Show selection change or start of area selection
     } else if (["pencil", "rect", "arrow", "text"].includes(currentTool)) {
+      selectedDrawingIndex = null; // Deselect any object when starting to draw a new one
       isDrawing = true; // Start drawing a new shape/text placement
       // For pencil, add the first point immediately
       if (currentTool === "pencil") {
@@ -627,14 +830,14 @@ if (!window.webDrawInitialized) {
           points: [docCoords],
           color: currentColor,
           lineWidth: currentLineWidth,
-          lineDash: currentLineDash,
+          lineDash: currentLineDash ? [...currentLineDash] : null, // Store a copy
         });
-        // No immediate drawing needed, redrawCanvas on move will handle it
       }
+      redrawCanvas(); // Clear selection highlight if any
     }
 
-    // Add document listeners ONLY if we started drawing or dragging an object
-    if (isDrawing || isDraggingObject) {
+    // Add document listeners ONLY if we started drawing, dragging an object, or selecting an area
+    if (isDrawing || isDraggingObject || isSelectingArea) {
       document.addEventListener("mousemove", handleDocumentMouseMove);
       document.addEventListener("mouseup", handleDocumentMouseUp);
     }
@@ -642,7 +845,6 @@ if (!window.webDrawInitialized) {
     e.preventDefault(); // Prevent default browser actions like text selection drag
   }
 
-  // Renamed from handleMouseMove - ONLY called via handleDocumentMouseMove
   function handleDrawingMouseMove(e) {
     if (!isActive) return; // Check if drawing is active
 
@@ -679,7 +881,7 @@ if (!window.webDrawInitialized) {
         const currentPath = drawings[drawings.length - 1];
         if (currentPath?.type === "pencil") {
           currentPath.points.push(docCoords);
-          requestAnimationFrame(redrawCanvas); // Redraw the whole canvas to show new segment
+          requestAnimationFrame(redrawCanvas);
         }
       } else if (currentTool === "rect" || currentTool === "arrow") {
         // Draw preview shape on top
@@ -689,7 +891,7 @@ if (!window.webDrawInitialized) {
           ctx.strokeStyle = currentColor;
           ctx.lineWidth = currentLineWidth;
           ctx.setLineDash(currentLineDash || []);
-          const startCanvas = getCanvasCoords(startX, startY);
+          const startCanvas = getCanvasCoords(startX, startY); // Use canvas coords for drawing preview
           const currentCanvas = getCanvasCoords(docCoords.x, docCoords.y);
 
           if (currentTool === "rect") {
@@ -717,16 +919,24 @@ if (!window.webDrawInitialized) {
           ctx.restore();
         });
       }
+    } else if (
+      currentTool === "select" &&
+      isSelectingArea &&
+      selectionAreaRect
+    ) {
+      // --- Area Selection ---
+      selectionAreaRect.width = docCoords.x - selectionAreaRect.x;
+      selectionAreaRect.height = docCoords.y - selectionAreaRect.y;
+      requestAnimationFrame(redrawCanvas); // Redraw to show selection area
     }
   }
 
-  // Renamed from handleMouseUp - ONLY called via handleDocumentMouseUp
   function handleDrawingMouseUp(e) {
     if (e.button !== 0 || !isActive) return;
 
     const docCoords = getDocumentRelativeCoords(e);
     console.log(
-      `handleDrawingMouseUp: Tool: ${currentTool}, Drawing: ${isDrawing}, Dragging: ${isDraggingObject}`
+      `handleDrawingMouseUp: Tool: ${currentTool}, Drawing: ${isDrawing}, DraggingObj: ${isDraggingObject}, SelectingArea: ${isSelectingArea}`
     );
 
     // Finalize based on the action that was in progress
@@ -737,14 +947,22 @@ if (!window.webDrawInitialized) {
     } else if (isDrawing) {
       // Drawing action finished
       if (currentTool === "pencil") {
-        // Path already updated during move
-        // Optional simplification could happen here
+        // Path already updated during move, simplify if too few points
+        const currentPath = drawings[drawings.length - 1];
+        if (
+          currentPath &&
+          currentPath.type === "pencil" &&
+          currentPath.points.length < 2
+        ) {
+          drawings.pop(); // Remove if just a dot
+        }
       } else if (currentTool === "rect") {
         const rectX = Math.min(startX, docCoords.x);
         const rectY = Math.min(startY, docCoords.y);
         const rectWidth = Math.abs(docCoords.x - startX);
         const rectHeight = Math.abs(docCoords.y - startY);
-        if (rectWidth > 1 || rectHeight > 1) {
+        if (rectWidth > 2 || rectHeight > 2) {
+          // Min size threshold
           drawings.push({
             type: "rect",
             x: rectX,
@@ -753,14 +971,12 @@ if (!window.webDrawInitialized) {
             height: rectHeight,
             color: currentColor,
             lineWidth: currentLineWidth,
-            lineDash: currentLineDash,
+            lineDash: currentLineDash ? [...currentLineDash] : null,
           });
-        } else {
-          drawings.pop();
-        } // Remove if too small (likely accidental click)
+        }
       } else if (currentTool === "arrow") {
         if (
-          Math.abs(docCoords.x - startX) > 2 ||
+          Math.abs(docCoords.x - startX) > 2 || // Min length threshold
           Math.abs(docCoords.y - startY) > 2
         ) {
           drawings.push({
@@ -771,32 +987,81 @@ if (!window.webDrawInitialized) {
             y2: docCoords.y,
             color: currentColor,
             lineWidth: currentLineWidth,
-            lineDash: currentLineDash,
+            lineDash: currentLineDash ? [...currentLineDash] : null,
           });
-        } else {
-          drawings.pop();
-        } // Remove if too small
+        }
       } else if (currentTool === "text") {
-        createTextPrompt(startX, startY); // Create input at the starting point
+        // Only create text prompt if it was a click, not a drag
+        if (
+          Math.abs(docCoords.x - startX) < 5 &&
+          Math.abs(docCoords.y - startY) < 5
+        ) {
+          createTextPrompt(startX, startY); // Create input at the starting point
+        }
       }
 
-      // Save drawings unless it was text (which saves separately)
+      // Save drawings unless it was text (which saves separately after input)
       if (currentTool !== "text") {
         saveDrawings();
-        console.log("Drawing finished, saved drawings.");
+        console.log("Drawing finished for tool, saved drawings.", currentTool);
       }
-      redrawCanvas(); // Final redraw
+    } else if (
+      currentTool === "select" &&
+      isSelectingArea &&
+      selectionAreaRect
+    ) {
+      // --- Area Selection Finished ---
+      const finalSelectionRect = {
+        // Ensure width/height are positive
+        x: Math.min(
+          selectionAreaRect.x,
+          selectionAreaRect.x + selectionAreaRect.width
+        ),
+        y: Math.min(
+          selectionAreaRect.y,
+          selectionAreaRect.y + selectionAreaRect.height
+        ),
+        width: Math.abs(selectionAreaRect.width),
+        height: Math.abs(selectionAreaRect.height),
+      };
+
+      if (finalSelectionRect.width > 5 && finalSelectionRect.height > 5) {
+        // Min selection area
+        let foundIndex = null;
+        for (let i = drawings.length - 1; i >= 0; i--) {
+          const drawingBounds = getDrawingBounds(drawings[i]);
+          if (
+            drawingBounds &&
+            doRectsIntersect(finalSelectionRect, drawingBounds)
+          ) {
+            foundIndex = i;
+            break; // Select the topmost one
+          }
+        }
+        if (foundIndex !== null) {
+          selectedDrawingIndex = foundIndex;
+          console.log("Area selection: Selected drawing index", foundIndex);
+        } else {
+          selectedDrawingIndex = null;
+          console.log("Area selection: No drawings found in area.");
+        }
+      } else {
+        selectedDrawingIndex = null; // Area too small, deselect
+      }
     }
 
     // Reset flags and remove document listeners added by handleCanvasMouseDown
     isDrawing = false;
     isDraggingObject = false;
-    initialObjectPos = null;
+    isSelectingArea = false;
+    selectionAreaRect = null;
+    initialObjectPos = null; // Clear reference for object dragging
+
     document.removeEventListener("mousemove", handleDocumentMouseMove);
     document.removeEventListener("mouseup", handleDocumentMouseUp);
-  }
 
-  // handleMouseLeave not strictly necessary with document listeners, but can be added for edge cases if needed.
+    redrawCanvas(); // Final redraw for all cases
+  }
 
   // --- Text Input ---
   // createTextPrompt, saveOrRemoveTextOnExit, saveText, removeTextInput
@@ -910,9 +1175,20 @@ if (!window.webDrawInitialized) {
   }
 
   // --- Selection and Hit Detection ---
-  // getDrawingBounds, isPointHittingDrawing, findClickedDrawingIndex
-  // ... (no changes from previous version) ...
+
+  // Helper for area selection intersection
+  function doRectsIntersect(rectA, rectB) {
+    if (!rectA || !rectB) return false;
+    return (
+      rectA.x < rectB.x + rectB.width &&
+      rectA.x + rectA.width > rectB.x &&
+      rectA.y < rectB.y + rectB.height &&
+      rectA.y + rectA.height > rectB.y
+    );
+  }
+
   function getDrawingBounds(drawing) {
+    // ... (no changes to internal logic) ...
     if (!drawing) return null;
     let minX = Infinity,
       minY = Infinity,
@@ -945,6 +1221,7 @@ if (!window.webDrawInitialized) {
         const lines = drawing.text.split("\n");
         const fontSizePx = parseInt(drawing.fontSize || FONT_SIZE_MAP.M) || 16;
         const approxLineHeight = fontSizePx * 1.4;
+        // Use a temporary canvas for text measurement if ctx is not readily available or for isolation
         const tempCtx = document.createElement("canvas").getContext("2d");
         tempCtx.font = `${drawing.fontSize || FONT_SIZE_MAP.M} ${
           drawing.fontFamily || FONT_FAMILY_MAP.Virgil
@@ -967,8 +1244,11 @@ if (!window.webDrawInitialized) {
       default:
         return null;
     }
-    const padding =
-      (drawing.lineWidth || (drawing.type === "text" ? 2 : 1)) / 2 + 5;
+    // Padding for easier selection, ensure lineWidth is sensible
+    const effectiveLineWidth =
+      drawing.lineWidth || (drawing.type === "text" ? 2 : 1);
+    const padding = Math.max(1, effectiveLineWidth / 2) + 5; // ensure padding is at least 5
+
     return {
       x: minX - padding,
       y: minY - padding,
@@ -980,9 +1260,13 @@ if (!window.webDrawInitialized) {
   function isPointHittingDrawing(canvasX, canvasY, drawing) {
     const bounds = getDrawingBounds(drawing);
     if (!bounds || !canvas) return false;
-    const rect = canvas.getBoundingClientRect();
-    const docX = canvasX + window.scrollX; // Already relative to viewport
-    const docY = canvasY + window.scrollY;
+
+    // Convert canvasX, canvasY (relative to canvas viewport top-left) to document coordinates
+    // because getDrawingBounds returns document coordinates.
+    const canvasRect = canvas.getBoundingClientRect();
+    const docX = canvasX + canvasRect.left + window.scrollX;
+    const docY = canvasY + canvasRect.top + window.scrollY;
+
     return (
       docX >= bounds.x &&
       docX <= bounds.x + bounds.width &&
@@ -992,6 +1276,7 @@ if (!window.webDrawInitialized) {
   }
 
   function findClickedDrawingIndex(canvasX, canvasY) {
+    // canvasX, canvasY are canvas-relative
     for (let i = drawings.length - 1; i >= 0; i--) {
       if (isPointHittingDrawing(canvasX, canvasY, drawings[i])) return i;
     }
@@ -1020,15 +1305,16 @@ if (!window.webDrawInitialized) {
   function getCanvasCoords(docX, docY) {
     // ... (no changes) ...
     if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    return { x: docX - scrollX - rect.left, y: docY - scrollY - rect.top };
+    const rect = canvas.getBoundingClientRect(); // rect is relative to viewport
+    // To get canvas-relative coords: (docX - scrollX) gives viewportX. Then (viewportX - rect.left).
+    return {
+      x: docX - window.scrollX - rect.left,
+      y: docY - window.scrollY - rect.top,
+    };
   }
 
   // --- Redrawing & Persistence ---
   function redrawCanvas() {
-    // ... (no changes in logic, ensures styles from drawing objects are used) ...
     if (!ctx || !canvas) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -1041,8 +1327,8 @@ if (!window.webDrawInitialized) {
 
       try {
         if (d.type === "pencil" && d.points?.length > 0) {
-          /*...*/
           ctx.beginPath();
+          // All points are stored as document-relative, convert to canvas-relative for drawing
           const startCoords = getCanvasCoords(d.points[0].x, d.points[0].y);
           ctx.moveTo(startCoords.x, startCoords.y);
           for (let i = 1; i < d.points.length; i++) {
@@ -1051,13 +1337,12 @@ if (!window.webDrawInitialized) {
           }
           ctx.stroke();
         } else if (d.type === "rect") {
-          /*...*/
           if (typeof d.width === "number" && typeof d.height === "number") {
             const startCoords = getCanvasCoords(d.x, d.y);
+            // width and height are already correct, no conversion needed for them
             ctx.strokeRect(startCoords.x, startCoords.y, d.width, d.height);
           }
         } else if (d.type === "arrow") {
-          /*...*/
           const startCoords = getCanvasCoords(d.x1, d.y1);
           const endCoords = getCanvasCoords(d.x2, d.y2);
           ctx.beginPath();
@@ -1073,7 +1358,6 @@ if (!window.webDrawInitialized) {
             10 + (d.lineWidth || 1) * 2
           );
         } else if (d.type === "text") {
-          /*...*/
           const startCoords = getCanvasCoords(d.x, d.y);
           const lines = d.text.split("\n");
           const font = `${d.fontSize || FONT_SIZE_MAP.M} ${
@@ -1096,17 +1380,17 @@ if (!window.webDrawInitialized) {
 
         if (index === selectedDrawingIndex) {
           /* Draw selection highlight */
-          const bounds = getDrawingBounds(d);
+          const bounds = getDrawingBounds(d); // bounds are document-relative
           if (bounds) {
-            const selectionCoords = getCanvasCoords(bounds.x, bounds.y);
-            // Save state specifically for dashed line
+            const selectionTopLeftCanvas = getCanvasCoords(bounds.x, bounds.y);
+            // bounds.width and bounds.height are fine as they are (lengths)
             const currentDash = ctx.getLineDash();
             ctx.strokeStyle = "rgba(0, 100, 255, 0.7)";
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 4]);
             ctx.strokeRect(
-              selectionCoords.x,
-              selectionCoords.y,
+              selectionTopLeftCanvas.x,
+              selectionTopLeftCanvas.y,
               bounds.width,
               bounds.height
             );
@@ -1119,6 +1403,26 @@ if (!window.webDrawInitialized) {
         ctx.restore();
       }
     });
+
+    // Draw selection area preview if active
+    if (currentTool === "select" && isSelectingArea && selectionAreaRect) {
+      ctx.save();
+      const selAreaStartCanvas = getCanvasCoords(
+        selectionAreaRect.x,
+        selectionAreaRect.y
+      );
+      // selectionAreaRect.width and height are deltas in document space, they are fine as lengths.
+      ctx.strokeStyle = "rgba(0, 100, 255, 0.7)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(
+        selAreaStartCanvas.x,
+        selAreaStartCanvas.y,
+        selectionAreaRect.width,
+        selectionAreaRect.height
+      );
+      ctx.restore();
+    }
   }
 
   // --- Persistence ---
@@ -1172,10 +1476,46 @@ if (!window.webDrawInitialized) {
   // --- Utilities: Share, Delete, Notifications, Confirmation ---
 
   function handleShare() {
-    // ... (no changes) ...
-    console.log("Initiating Share...");
-    const makeupLink = "https://i.imgur.com/placeholder_example.png"; // Use prototype link
-    copyLinkToClipboardAndNotify(makeupLink);
+    // Prepare data for background script
+    const viewportData = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    };
+    const dataToSend = {
+      drawings: drawings,
+      viewport: viewportData,
+    };
+
+    console.log("WebDraw: Sending createShareImage to background", dataToSend);
+    showNotification("Creating share link...", false); // Show a generic "creating" message
+
+    chrome.runtime
+      .sendMessage({ action: "createShareImage", data: dataToSend })
+      .then((response) => {
+        if (response && response.imageUrl) {
+          copyLinkToClipboardAndNotify(response.imageUrl);
+          // The notification for success/placeholder status will come from background implicitly
+          // by the nature of the link (e.g., if it's the "fake_link_from_background.png").
+          // If a more explicit message about using a placeholder is needed from content.js,
+          // background.js would need to send an additional flag in the response.
+          // For now, copying the received link is the primary action.
+        } else if (response && response.error) {
+          console.error("Share failed:", response.error);
+          showNotification(`Error: ${response.error}`, true);
+        } else {
+          console.error("Share failed: Unknown response from background.");
+          showNotification("Error: Could not create share link.", true);
+        }
+      })
+      .catch((error) => {
+        console.error("Share message failed:", error);
+        showNotification(
+          `Error: ${error.message || "Failed to send share request."}`,
+          true
+        );
+      });
   }
 
   function copyLinkToClipboardAndNotify(link) {
@@ -1202,8 +1542,12 @@ if (!window.webDrawInitialized) {
       document.body.appendChild(nDiv);
     }
     nDiv.textContent = message;
-    nDiv.className = isError ? "error" : "";
+    nDiv.className = isError ? "error" : ""; // Reset classes then add error if needed
+    if (isError) nDiv.classList.add("error");
+    else nDiv.classList.remove("error");
+
     if (notificationTimeout) clearTimeout(notificationTimeout);
+    // Force reflow to restart animation
     void nDiv.offsetWidth;
     nDiv.classList.add("visible");
     notificationTimeout = setTimeout(() => {
@@ -1219,64 +1563,37 @@ if (!window.webDrawInitialized) {
     }
   }
 
-  // --- Custom Confirmation ---
-  function showConfirmation(message, onConfirm) {
+  // --- Custom Confirmation (Enhanced) ---
+  function showComplexConfirmation(message, buttonsConfig, callback) {
     removeConfirmation(); // Remove existing if any
 
     confirmationDiv = document.createElement("div");
-    confirmationDiv.id = "webDrawConfirmation"; // Style this ID in CSS
-    confirmationDiv.innerHTML = `
-            <p>${message}</p>
-            <div class="webdraw-confirm-buttons">
-                <button class="confirm-yes">Confirm</button>
-                <button class="confirm-no">Cancel</button>
-            </div>
-        `;
+    confirmationDiv.id = "webDrawConfirmation";
+    confirmationDiv.innerHTML = `<p>${message}</p><div class="webdraw-confirm-buttons"></div>`;
 
-    // Simple inline styles for positioning - ideally use CSS classes
-    confirmationDiv.style.position = "fixed";
-    confirmationDiv.style.left = "50%";
-    confirmationDiv.style.top = "40%";
-    confirmationDiv.style.transform = "translate(-50%, -50%)";
-    confirmationDiv.style.background = "#fff";
-    confirmationDiv.style.border = "1px solid #ccc";
-    confirmationDiv.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-    confirmationDiv.style.padding = "20px";
-    confirmationDiv.style.borderRadius = "8px";
-    confirmationDiv.style.zIndex = "10006"; // Above notification
-    confirmationDiv.style.textAlign = "center";
-
-    const btnContainer = confirmationDiv.querySelector(
+    const buttonsContainer = confirmationDiv.querySelector(
       ".webdraw-confirm-buttons"
     );
-    btnContainer.style.marginTop = "15px";
-    btnContainer.style.display = "flex";
-    btnContainer.style.gap = "10px";
-    btnContainer.style.justifyContent = "center";
 
-    const yesButton = confirmationDiv.querySelector(".confirm-yes");
-    const noButton = confirmationDiv.querySelector(".confirm-no");
-    // Basic button styling
-    [yesButton, noButton].forEach((btn) => {
-      btn.style.padding = "8px 15px";
-      btn.style.border = "1px solid #ccc";
-      btn.style.borderRadius = "4px";
-      btn.style.cursor = "pointer";
+    buttonsConfig.forEach((btnConfig) => {
+      const button = document.createElement("button");
+      button.textContent = btnConfig.text;
+      // Apply a general class and a specific style class
+      button.classList.add("webdraw-confirm-button"); // A generic class for all confirm buttons if needed
+      if (btnConfig.styleClass) {
+        button.classList.add(btnConfig.styleClass); // e.g., 'confirm-action-danger'
+      }
+      button.onclick = () => {
+        removeConfirmation();
+        if (callback) callback(btnConfig.action);
+      };
+      buttonsContainer.appendChild(button);
     });
-    yesButton.style.background = "#d9534f";
-    yesButton.style.color = "white";
-    yesButton.style.borderColor = "#d43f3a"; // Red for confirm delete
-    noButton.style.background = "#f0f0f0";
-
-    yesButton.onclick = () => {
-      removeConfirmation();
-      onConfirm(); // Execute the action
-    };
-    noButton.onclick = () => {
-      removeConfirmation(); // Just close
-    };
 
     document.body.appendChild(confirmationDiv);
+    // Focus the first button or a "cancel" button for better keyboard nav, if desired
+    const firstButton = buttonsContainer.querySelector("button");
+    if (firstButton) firstButton.focus();
   }
 
   function removeConfirmation() {
@@ -1287,31 +1604,80 @@ if (!window.webDrawInitialized) {
   }
 
   function deleteSelectedDrawingWithConfirmation() {
-    if (selectedDrawingIndex === null) return; // Should not happen if called correctly
-    showConfirmation("Delete selected drawing?", () => {
-      if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
-        // Double check index is still valid
-        drawings.splice(selectedDrawingIndex, 1);
-        selectedDrawingIndex = null;
-        isDraggingObject = false;
-        saveDrawings();
-        redrawCanvas();
-        console.log("Selected drawing deleted.");
+    if (selectedDrawingIndex === null) return;
+
+    const buttons = [
+      {
+        text: "Delete Selected",
+        action: "delete_selected",
+        styleClass: "confirm-action-normal",
+      },
+      {
+        text: "Clear ALL Drawings",
+        action: "clear_all",
+        styleClass: "confirm-action-danger",
+      },
+      { text: "Cancel", action: "cancel", styleClass: "confirm-action-cancel" },
+    ];
+
+    showComplexConfirmation(
+      "An item is selected. Choose an action:",
+      buttons,
+      (chosenAction) => {
+        if (chosenAction === "delete_selected") {
+          if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
+            drawings.splice(selectedDrawingIndex, 1);
+            selectedDrawingIndex = null;
+            isDraggingObject = false;
+            saveDrawings();
+            redrawCanvas();
+            console.log("Selected drawing deleted.");
+            showNotification("Selected drawing deleted.");
+          }
+        } else if (chosenAction === "clear_all") {
+          drawings = [];
+          selectedDrawingIndex = null;
+          isDrawing = false;
+          isDraggingObject = false;
+          saveDrawings();
+          redrawCanvas();
+          console.log("All drawings cleared.");
+          showNotification("All drawings cleared.");
+        }
+        // 'cancel' action does nothing as dialog is already closed
       }
-    });
+    );
   }
 
   function clearAllDrawingsWithConfirmation() {
-    if (drawings.length === 0) return;
-    showConfirmation("Clear ALL drawings?", () => {
-      drawings = [];
-      selectedDrawingIndex = null;
-      isDrawing = false;
-      isDraggingObject = false;
-      saveDrawings();
-      redrawCanvas();
-      console.log("All drawings cleared.");
-    });
+    if (drawings.length === 0) {
+      showNotification("Nothing to clear.");
+      return;
+    }
+    const buttons = [
+      {
+        text: "Clear All",
+        action: "confirm_clear_all",
+        styleClass: "confirm-action-danger",
+      },
+      { text: "Cancel", action: "cancel", styleClass: "confirm-action-cancel" },
+    ];
+    showComplexConfirmation(
+      "Are you sure you want to clear ALL drawings on this page?",
+      buttons,
+      (chosenAction) => {
+        if (chosenAction === "confirm_clear_all") {
+          drawings = [];
+          selectedDrawingIndex = null;
+          isDrawing = false;
+          isDraggingObject = false;
+          saveDrawings();
+          redrawCanvas();
+          console.log("All drawings cleared.");
+          showNotification("All drawings cleared.");
+        }
+      }
+    );
   }
 
   // --- Deactivation ---
@@ -1319,14 +1685,15 @@ if (!window.webDrawInitialized) {
     console.log("WebDraw: Deactivating...");
     removeConfirmation(); // Ensure confirmation is removed
     if (textInputDiv) {
-      /*...*/ saveOrRemoveTextOnExit(
-        parseFloat(textInputDiv.style.left),
-        parseFloat(textInputDiv.style.top)
+      const textInputStyle = window.getComputedStyle(textInputDiv); // Get style if needed
+      saveOrRemoveTextOnExit(
+        parseFloat(textInputStyle.left), // Use computed style if direct style isn't always set
+        parseFloat(textInputStyle.top)
       );
       removeTextInput();
     }
     hideAllStyleSubWindows();
-    removeEventListeners();
+    removeEventListeners(); // Will also remove subwindow drag listener
     if (canvas) canvas.remove();
     if (toolbox) toolbox.remove();
     const nDiv = document.getElementById("webDrawNotification");
@@ -1345,14 +1712,19 @@ if (!window.webDrawInitialized) {
     isDrawing = false;
     isDraggingObject = false;
     isDraggingToolbox = false;
+    isDraggingSubwindow = false;
+    isSelectingArea = false;
+    selectionAreaRect = null;
 
     document.body.style.cursor = "default";
     chrome.runtime
       .sendMessage({ action: "drawingDeactivated" })
-      .catch((e) => console.warn(e));
+      .catch((e) =>
+        console.warn("WebDraw: Error sending deactivation message:", e)
+      );
     console.log("WebDraw: Deactivated.");
-    window.webDrawInitialized = false;
-    return false;
+    window.webDrawInitialized = false; // Allow re-initialization
+    return false; // To match promise signature in content_loader
   }
 
   // --- Global Toggle Function ---
@@ -1362,12 +1734,22 @@ if (!window.webDrawInitialized) {
       "WebDraw: Toggle requested. Current state isActive =",
       isActive
     );
-    if (isActive) return deactivateDrawing();
-    else {
+    if (isActive) {
+      return deactivateDrawing(); // Returns false
+    } else {
+      // Ensure flag is set before initialization attempt
+      // window.webDrawInitialized might have been reset by deactivateDrawing
+      // The outer guard `if (!window.webDrawInitialized)` handles the very first load of the script
+      // This inner one handles re-activation
       window.webDrawInitialized = true;
-      return initializeDrawing();
+      return initializeDrawing(); // Returns true if successful
     }
   };
 } else {
-  console.log("WebDraw: Already initialized flag set.");
+  // End of `if (!window.webDrawInitialized)`
+  console.log(
+    "WebDraw: Already initialized flag set (script already ran once and might be active or inactive)."
+  );
+  // If webDrawToggle exists, it means the script has fully loaded at least once.
+  // The toggle logic in background.js calling window.webDrawToggle will handle the state.
 }

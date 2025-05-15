@@ -1,393 +1,430 @@
 /* FILE: content.css */
 @font-face {
-  font-family: "Virgil";
-  src: url("chrome-extension://__MSG_@@extension_id__/fonts/Virgil.woff2")
-    format("woff2");
-  font-weight: normal;
-  font-style: normal;
+font-family: "Virgil";
+src: url("chrome-extension://__MSG_@@extension_id__/fonts/Virgil.woff2") /* Ensure __MSG_@@extension_id__ is correctly substituted by Chrome */
+format("woff2");
+font-weight: normal;
+font-style: normal;
 }
 
-/* ADDED: Nerd Font for Icons */
 @font-face {
-  font-family: "WebDrawNerdFont"; /* Custom name for our usage */
-  src: url("chrome-extension://__MSG_@@extension_id__/fonts/BigBlueTerminalPlus.ttf")
-    format("truetype");
-  font-weight: normal;
-  font-style: normal;
+font-family: "WebDrawNerdFont"; /* Custom name for our usage */
+src: url("chrome-extension://__MSG_@@extension_id__/fonts/BigBlueTermPlus.ttf") /* Ensure correct path and substitution */
+format("truetype");
+font-weight: normal;
+font-style: normal;
 }
 
 /* Ensure canvas stays behind toolbox but above page content */
 #webDrawCanvas {
-  position: absolute; /* Crucial for scrolling with document */
-  top: 0;
-  left: 0;
-  z-index: 10000;
-  pointer-events: auto; /* Capture clicks when active */
+position: absolute; /* Crucial for scrolling with document */
+top: 0;
+left: 0;
+z-index: 10000;
+pointer-events: auto; /* Capture clicks when active */
 }
 
 /* Toolbox Styling */
 #webDrawToolbox {
-  position: fixed; /* Stays in view */
-  top: 20px;
-  left: 20px;
-  z-index: 10001; /* Above canvas */
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  gap: 5px; /* Space between buttons */
-  /* Font family for text within toolbox, icons will use Nerd Font */
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif;
-  border: 1px solid #e0e0e0;
-  cursor: default;
-  user-select: none;
+position: fixed; /* Stays in view */
+top: 20px;
+left: 20px;
+z-index: 10001; /* Above canvas */
+background-color: #ffffff;
+border-radius: 8px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+padding: 8px;
+display: flex;
+align-items: center;
+gap: 5px; /* Space between buttons */
+/* Font family for text within toolbox, icons will use Nerd Font */
+font-family: "Helvetica Neue", Arial, sans-serif; /* Fallback for title, buttons use specific font */
+border: 1px solid #e0e0e0;
+cursor: default;
+user-select: none;
 }
 
 .webdraw-title {
-  font-weight: bold;
-  margin-right: 10px;
-  font-size: 14px;
-  color: #333;
-  cursor: grab;
+font-weight: bold;
+margin-right: 10px;
+font-size: 14px;
+color: #333;
+cursor: grab;
+font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure title uses Virgil or fallback */
 }
 .webdraw-title:active {
-  cursor: grabbing;
+cursor: grabbing;
 }
 
 .webdraw-button {
-  background-color: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 6px 8px;
-  cursor: pointer;
-  /* UPDATED: Apply Nerd Font for icons, adjust size */
-  font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif;
-  font-size: 20px; /* Adjust as needed for Nerd Font icons */
-  line-height: 1;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  color: #555;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 30px; /* Ensure buttons have some width for icons */
-  min-height: 30px; /* Ensure buttons have some height for icons */
+background-color: transparent;
+border: 1px solid transparent;
+border-radius: 6px;
+padding: 6px 8px; /* Reduced padding slightly for icon consistency */
+cursor: pointer;
+/* Apply Nerd Font for icons, adjust size */
+font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif; /* Nerd Font first */
+font-size: 18px; /* Adjusted Nerd Font icon size */
+line-height: 1; /* Critical for icon alignment */
+transition: background-color 0.2s ease, border-color 0.2s ease;
+color: #555;
+display: flex;
+align-items: center;
+justify-content: center;
+min-width: 32px; /* Ensure buttons have some width for icons */
+min-height: 32px; /* Ensure buttons have some height for icons */
+box-sizing: border-box;
 }
 
 .webdraw-button:hover {
-  background-color: #f0f0f0;
-  border-color: #d0d0d0;
+background-color: #f0f0f0;
+border-color: #d0d0d0;
 }
 
 .webdraw-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
-  color: #1890ff;
+background-color: #e6f7ff;
+border-color: #91d5ff;
+color: #1890ff;
 }
 
 /* Style Sub-window */
 #webDrawStyleSubwindow {
-  position: absolute;
-  background-color: #ffffff;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  padding: 10px;
-  z-index: 10002;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1px solid #e0e0e0;
-  min-width: 180px; /* Slightly wider for new font buttons */
-  cursor: default; /* Default for subwindow, grab for drag handle */
-  user-select: none;
+position: fixed; /* Changed to fixed to move with viewport like toolbox */
+background-color: #ffffff;
+border-radius: 6px;
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+padding: 10px;
+z-index: 10002; /* Above toolbox and canvas */
+display: flex;
+flex-direction: column;
+gap: 8px;
+border: 1px solid #e0e0e0;
+min-width: 200px; /* Slightly wider for new font buttons and structure */
+cursor: default; /* Default for subwindow, grab for drag handle */
+user-select: none;
 }
 
 /* ADDED: Drag handle for subwindow */
 .webdraw-subwindow-drag-handle {
-  padding: 5px;
-  margin: -10px -10px 5px -10px; /* Extend to edges, add bottom margin */
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-  text-align: center;
-  font-size: 10px;
-  color: #777;
-  cursor: grab;
-  line-height: 1;
+padding: 6px 10px; /* More padding for easier grab */
+margin: -10px -10px 8px -10px; /* Extend to edges, add bottom margin */
+background-color: #f0f0f0;
+border-bottom: 1px solid #e0e0e0;
+border-top-left-radius: 6px; /* Match parent */
+border-top-right-radius: 6px; /* Match parent */
+text-align: center;
+font-size: 12px; /* Slightly larger text */
+font-weight: bold;
+color: #555;
+cursor: grab;
+line-height: 1.2; /* Adjust line height */
+font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Consistent font */
 }
 .webdraw-subwindow-drag-handle:active {
-  cursor: grabbing;
+cursor: grabbing;
 }
 
 .webdraw-style-section {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+display: flex;
+align-items: center;
+gap: 6px;
+flex-wrap: wrap; /* Allow wrapping for smaller screens */
 }
 
 .webdraw-style-label {
-  font-size: 12px;
-  color: #555;
-  margin-right: 4px;
-  min-width: 40px;
-  text-align: right;
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure label uses Virgil */
+font-size: 12px;
+color: #555;
+margin-right: 4px;
+min-width: 40px;
+text-align: right;
+font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure label uses Virgil */
 }
 
 /* Preset Color Buttons */
 .webdraw-color-button {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-  box-sizing: border-box;
+width: 22px; /* Slightly larger */
+height: 22px; /* Slightly larger */
+border-radius: 4px;
+border: 2px solid transparent;
+cursor: pointer;
+transition: border-color 0.2s ease;
+box-sizing: border-box;
 }
 
 .webdraw-color-button:hover {
-  border-color: #a0a0a0;
+border-color: #a0a0a0;
 }
 
 .webdraw-color-button.active {
-  border-color: #1890ff;
+border-color: #1890ff; /* Bright blue for active color */
+box-shadow: 0 0 0 1px #1890ff; /* Optional: extra emphasis */
 }
 
-/* Width Buttons (S/M/L) */
-.webdraw-width-button {
-  font-size: 12px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: #fff;
-  min-width: 30px;
-  text-align: center;
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure SML uses Virgil */
+/* Width Buttons (S/M/L) & Font Size Buttons */
+.webdraw-width-button { /* Also used for Font Size S/M/L */
+font-size: 12px;
+padding: 4px 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+cursor: pointer;
+background-color: #fff;
+min-width: 30px; /* Minimum width */
+text-align: center;
+font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* Ensure SML uses Virgil */
+display: flex; /* For aligning text and example line */
+flex-direction: column; /* Stack text and example line */
+align-items: center;
+justify-content: center;
+height: auto; /* Allow height to adjust for content */
+line-height: 1.2;
 }
 .webdraw-width-button:hover {
-  background-color: #f0f0f0;
-  border-color: #adadad;
+background-color: #f0f0f0;
+border-color: #adadad;
 }
 .webdraw-width-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
-  color: #1890ff;
+background-color: #e6f7ff;
+border-color: #91d5ff;
+color: #1890ff;
 }
 
 /* Width Example Lines */
 .webdraw-width-example {
-  height: 10px;
-  width: 20px;
-  display: flex;
-  align-items: center;
-  margin-left: -5px;
+height: 10px; /* Container for the line */
+width: 20px; /* Width of the example line container */
+display: flex;
+align-items: center;
+margin-top: 2px; /* Space between S/M/L text and line */
 }
 .webdraw-width-example hr {
-  width: 100%;
-  border: 0;
-  margin: 0;
-  background-color: #555;
+width: 100%;
+border: 0;
+margin: 0;
+background-color: #555; /* Default color for example line */
 }
+.webdraw-width-button.active .webdraw-width-example hr {
+background-color: #1890ff; /* Active color for example line */
+}
+
 
 /* Line Style Buttons (Solid/Dotted) */
 .webdraw-linestyle-button {
-  padding: 4px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 22px;
+padding: 4px;
+border: 1px solid #ccc;
+border-radius: 4px;
+cursor: pointer;
+background-color: #fff;
+display: flex;
+align-items: center;
+justify-content: center;
+width: 32px; /* Fixed width */
+height: 24px; /* Fixed height */
+box-sizing: border-box;
 }
 .webdraw-linestyle-button hr {
-  width: 80%;
-  border: 0;
-  border-top-width: 2px;
-  border-top-color: #555;
-  margin: 0;
+width: 80%;
+border: 0;
+border-top-width: 2px; /* Thickness of the example line */
+border-top-color: #555; /* Color of the example line */
+margin: 0;
 }
 .webdraw-linestyle-button:hover {
-  background-color: #f0f0f0;
-  border-color: #adadad;
+background-color: #f0f0f0;
+border-color: #adadad;
 }
 .webdraw-linestyle-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
+background-color: #e6f7ff;
+border-color: #91d5ff;
 }
+.webdraw-linestyle-button.active hr {
+    border-top-color: #1890ff; /* Active color for example line */
+}
+
 
 /* Font Family Buttons */
 .webdraw-font-button {
-  /* Font for displaying name, not the actual font sample */
-  font-family: "Virgil", "Helvetica Neue", Arial, sans-serif;
-  font-size: 12px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: #fff;
-  flex-grow: 1;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 45px; /* Adjusted for "Courier" */
-  height: 22px; /* Match other buttons */
-  box-sizing: border-box;
+/* Font for displaying name, not the actual font sample */
+font-family: "Virgil", "Helvetica Neue", Arial, sans-serif; /* For the button text itself */
+font-size: 12px;
+padding: 4px 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+cursor: pointer;
+background-color: #fff;
+flex-grow: 1; /* Allow buttons to grow */
+text-align: center;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+min-width: 50px; /* Adjusted for "Courier" */
+height: 24px; /* Match other buttons' height */
+box-sizing: border-box;
+line-height: 1.2; /* Center text vertically */
 }
 .webdraw-font-button:hover {
-  background-color: #f0f0f0;
-  border-color: #adadad;
+background-color: #f0f0f0;
+border-color: #adadad;
 }
 .webdraw-font-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
-  color: #1890ff;
+background-color: #e6f7ff;
+border-color: #91d5ff;
+color: #1890ff;
 }
 
 /* Text Align Buttons */
 .webdraw-align-button {
-  /* UPDATED: Use Nerd Font for alignment icons if desired, else text */
-  font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif;
-  font-size: 16px; /* Adjust if using Nerd Font icons */
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  background-color: #fff;
-  min-width: 30px;
-  text-align: center;
+/* Use Nerd Font for alignment icons */
+font-family: "WebDrawNerdFont", "Virgil", "Helvetica Neue", Arial, sans-serif; /* Nerd Font first */
+font-size: 16px; /* Adjust if using Nerd Font icons */
+padding: 4px 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+cursor: pointer;
+background-color: #fff;
+min-width: 32px; /* Consistent width */
+text-align: center;
+height: 24px; /* Consistent height */
+box-sizing: border-box;
+display: flex;
+align-items: center;
+justify-content: center;
+line-height: 1;
 }
 .webdraw-align-button:hover {
-  background-color: #f0f0f0;
-  border-color: #adadad;
+background-color: #f0f0f0;
+border-color: #adadad;
 }
 .webdraw-align-button.active {
-  background-color: #e6f7ff;
-  border-color: #91d5ff;
-  color: #1890ff;
+background-color: #e6f7ff;
+border-color: #91d5ff;
+color: #1890ff;
 }
 
 /* Text Input Styling */
 #webDrawTextInput {
-  position: absolute;
-  background: rgba(240, 240, 240, 0.85);
-  border: none;
-  padding: 5px 8px;
-  /* font-size will be set by currentFontSize */
-  /* font-family will be set by currentFontFamily */
-  /* color will be set by currentColor */
-  min-width: 60px;
-  z-index: 10002;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  line-height: 1.4;
-  outline: none;
-  overflow-wrap: break-word;
+position: absolute;
+background: rgba(240, 240, 240, 0.9); /* Slightly more opaque */
+border: 1px solid #ccc; /* Subtle border */
+border-radius: 4px;
+padding: 6px 10px; /* More padding */
+min-width: 80px; /* Wider min-width */
+z-index: 10002; /* Ensure above canvas, potentially subwindow if not careful with stacking */
+box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+line-height: 1.4;
+outline: none;
+overflow-wrap: break-word;
+/* font-size, font-family, color will be set by JS */
 }
 
 /* Share Notification Styling */
 #webDrawNotification {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 128, 0, 0.8);
-  color: white;
-  padding: 10px 20px;
-  border-radius: 15px;
-  z-index: 10005;
-  font-size: 14px;
-  font-family: "Helvetica Neue", Arial, sans-serif;
-  opacity: 0;
-  transition: opacity 0.5s ease-in-out;
-  pointer-events: none;
-  white-space: nowrap;
+position: fixed;
+bottom: 30px;
+left: 50%;
+transform: translateX(-50%);
+background-color: rgba(40, 167, 69, 0.9); /* Bootstrap success, slightly more opaque */
+color: white;
+padding: 12px 22px; /* More padding */
+border-radius: 20px; /* More rounded */
+z-index: 10005;
+font-size: 14px;
+font-family: "Helvetica Neue", Arial, sans-serif;
+opacity: 0;
+transition: opacity 0.5s ease-in-out, transform 0.3s ease-in-out; /* Added transform transition */
+pointer-events: none;
+white-space: nowrap;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 #webDrawNotification.visible {
-  opacity: 1;
+opacity: 1;
+transform: translateX(-50%) translateY(0); /* Final position */
+}
+#webDrawNotification.error {
+background-color: rgba(220, 53, 69, 0.9); /* Bootstrap danger, slightly more opaque */
 }
 
-#webDrawNotification.error {
-  background-color: rgba(220, 53, 69, 0.85);
-}
 
 /* Confirmation Dialog Styling */
 #webDrawConfirmation {
-  position: fixed;
-  left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
-  background-color: #ffffff;
-  border: 1px solid #ccc;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 25px 30px;
-  border-radius: 8px;
-  z-index: 10006;
-  text-align: center;
-  min-width: 280px; /* Wider for multiple buttons */
-  font-family: "Helvetica Neue", Arial, sans-serif;
-  font-size: 15px;
-  color: #333;
+position: fixed;
+left: 50%;
+top: 40%; /* Adjust vertical position slightly */
+transform: translate(-50%, -50%);
+background-color: #ffffff;
+border: 1px solid #ddd; /* Lighter border */
+box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2); /* Softer, larger shadow */
+padding: 25px 30px;
+border-radius: 10px; /* More rounded */
+z-index: 10006; /* High z-index */
+text-align: center;
+min-width: 300px; /* Wider for multiple buttons or longer messages */
+font-family: "Helvetica Neue", Arial, sans-serif;
+font-size: 15px;
+color: #333;
 }
 
 #webDrawConfirmation p {
-  margin: 0 0 20px 0;
+margin: 0 0 25px 0; /* More space below message */
+line-height: 1.5;
 }
 
 .webdraw-confirm-buttons {
-  display: flex;
-  gap: 10px; /* Reduced gap slightly if buttons are wider */
-  justify-content: center;
-  flex-wrap: wrap; /* Allow buttons to wrap if needed */
+display: flex;
+gap: 12px; /* Increased gap */
+justify-content: center;
+flex-wrap: wrap; /* Allow buttons to wrap if needed */
 }
 
+/* Generic style for all buttons in the confirmation dialog */
 #webDrawConfirmation button {
-  padding: 10px 15px; /* Adjusted padding */
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  min-width: 100px; /* Ensure buttons have enough space for text */
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  margin-bottom: 5px; /* For wrapping */
+padding: 10px 18px; /* Adjusted padding */
+border: 1px solid #ccc;
+border-radius: 6px; /* Slightly more rounded */
+cursor: pointer;
+font-size: 14px;
+font-weight: bold;
+min-width: 110px; /* Ensure buttons have enough space for text */
+transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+margin-bottom: 5px; /* For wrapping */
+box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
+#webDrawConfirmation button:hover {
+transform: translateY(-1px); /* Slight lift on hover */
+box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+#webDrawConfirmation button:active {
+transform: translateY(0px);
+box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+}
+
 
 #webDrawConfirmation button.confirm-action-normal {
-  /* Generic confirm button */
-  background-color: #5cb85c; /* Bootstrap success green */
-  color: white;
-  border-color: #4cae4c;
+background-color: #28a745; /* Bootstrap success green - darker */
+color: white;
+border-color: #218838;
 }
 #webDrawConfirmation button.confirm-action-normal:hover {
-  background-color: #449d44;
-  border-color: #398439;
+background-color: #218838;
+border-color: #1e7e34;
 }
 
 #webDrawConfirmation button.confirm-action-danger {
-  /* For destructive actions */
-  background-color: #d9534f;
-  color: white;
-  border-color: #d43f3a;
+background-color: #dc3545; /* Bootstrap danger red - standard */
+color: white;
+border-color: #c82333;
 }
 #webDrawConfirmation button.confirm-action-danger:hover {
-  background-color: #c9302c;
-  border-color: #ac2925;
+background-color: #c82333;
+border-color: #bd2130;
 }
 
 #webDrawConfirmation button.confirm-action-cancel {
-  background-color: #f8f9fa;
-  color: #333;
-  border-color: #ced4da;
+background-color: #f8f9fa; /* Bootstrap light grey */
+color: #333;
+border-color: #ced4da;
 }
 #webDrawConfirmation button.confirm-action-cancel:hover {
-  background-color: #e2e6ea;
-  border-color: #dae0e5;
+background-color: #e2e6ea;
+border-color: #dae0e5;
 }
