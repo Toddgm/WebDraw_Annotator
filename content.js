@@ -55,19 +55,21 @@ if (!window.webDrawInitialized) {
   let currentTextAlign = "left";
 
   let drawings = [];
-  let selectedDrawingIndex = null;
+  let selectedDrawingIndex = null; // For single primary selection
+  let multiSelectedIndices = []; // For area multi-selection
+
   const PAGE_STORAGE_KEY_PREFIX = "webDraw_";
 
-  // Nerd Font Icons (Unicode characters)
+  // Nerd Font Icons (Unicode characters) - User provided
   const svgs = {
-    select: "\uf25a", // nf-fa-mouse_pointer (replaces complex SVG and old surrogate pair)
-    pencil: "\udb83\uddeb", // nf-mdi-pencil
-    rectangle: "\uf096", // nf-mdi-rectangle_outline
-    arrow: "\udb80\udc5c", // nf-mdi-arrow_right_thin
-    text: "\uF031", // nf-fa-font
-    share: "\uf50f", // nf-mdi-share_variant
-    clear: "\uF1F8", // nf-fa-trash
-    exit: "\uF08B", // nf-fa-sign_out
+    select: "\uf25a",
+    pencil: "\udb83\uddeb",
+    rectangle: "\uf096",
+    arrow: "\udb80\udc5c",
+    text: "\uF031",
+    share: "\uf50f",
+    clear: "\uF1F8",
+    exit: "\uF08B",
   };
 
   // --- Initialization ---
@@ -133,7 +135,6 @@ if (!window.webDrawInitialized) {
     // Generate buttons from svgs object keys for maintainability
     let buttonsHTML = Object.keys(svgs)
       .map((key) => {
-        // Create a more descriptive title if needed, e.g., capitalize
         const title = key.charAt(0).toUpperCase() + key.slice(1);
         const shortcut =
           key === "select"
@@ -192,6 +193,8 @@ if (!window.webDrawInitialized) {
   }
 
   function handleDocumentMouseMove(e) {
+    if (document.getElementById("webDrawConfirmationOverlay")) return;
+
     if (isDraggingToolbox && toolbox) {
       let newLeft = e.clientX - toolboxOffsetX;
       let newTop = e.clientY - toolboxOffsetY;
@@ -220,7 +223,9 @@ if (!window.webDrawInitialized) {
   }
 
   function handleDocumentMouseUp(e) {
-    let wasActionHandled = false;
+    if (document.getElementById("webDrawConfirmationOverlay")) return;
+
+    let wasActionHandledByDrawing = false;
     if (
       isDrawing ||
       isDraggingObject ||
@@ -228,15 +233,16 @@ if (!window.webDrawInitialized) {
       (currentTool === "select" && isSelectingArea)
     ) {
       handleDrawingMouseUp(e); // This will clear its own document listeners
-      wasActionHandled = true; // The drawing/object action took precedence
+      wasActionHandledByDrawing = true;
     }
 
+    // Handle toolbox or subwindow dragging separately if no drawing action occurred
     if (isDraggingToolbox) {
       isDraggingToolbox = false;
       const titleElement = toolbox.querySelector(".webdraw-title");
       if (titleElement) titleElement.style.cursor = "grab";
-      if (!wasActionHandled) {
-        // Only remove if not already removed by drawing action
+      if (!wasActionHandledByDrawing) {
+        // Only remove if not already handled
         document.removeEventListener("mousemove", handleDocumentMouseMove);
         document.removeEventListener("mouseup", handleDocumentMouseUp);
       }
@@ -246,7 +252,7 @@ if (!window.webDrawInitialized) {
         ".webdraw-subwindow-drag-handle"
       );
       if (dragHandle) dragHandle.style.cursor = "grab";
-      if (!wasActionHandled) {
+      if (!wasActionHandledByDrawing) {
         document.removeEventListener("mousemove", handleDocumentMouseMove);
         document.removeEventListener("mouseup", handleDocumentMouseUp);
       }
@@ -262,21 +268,22 @@ if (!window.webDrawInitialized) {
   }
 
   function createOrShowStyleSubWindow(toolOrObjectType) {
+    console.log("createOrShowStyleSubWindow for:", toolOrObjectType);
     hideAllStyleSubWindows();
     styleSubwindow = document.createElement("div");
     styleSubwindow.id = "webDrawStyleSubwindow";
+    styleSubwindow.dataset.toolFor = toolOrObjectType; // Store what tool/type this window is for
     let contentHTML = `<div class="webdraw-subwindow-drag-handle" title="Drag to move">Style Options</div>`;
 
-    const selectedObj =
+    const primarySelectedObj =
       selectedDrawingIndex !== null ? drawings[selectedDrawingIndex] : null;
 
-    // Determine effective styles: from selected object or global defaults
-    const effColor = selectedObj?.color || currentColor;
-    const effLineWidth = selectedObj?.lineWidth || currentLineWidth;
-    const effLineDash = selectedObj?.lineDash || currentLineDash;
-    const effFontFamily = selectedObj?.fontFamily || currentFontFamily;
-    const effFontSize = selectedObj?.fontSize || currentFontSize; // For text, this is the actual size
-    const effTextAlign = selectedObj?.textAlign || currentTextAlign;
+    const effColor = primarySelectedObj?.color || currentColor;
+    const effLineWidth = primarySelectedObj?.lineWidth || currentLineWidth;
+    const effLineDash = primarySelectedObj?.lineDash || currentLineDash;
+    const effFontFamily = primarySelectedObj?.fontFamily || currentFontFamily;
+    const effFontSize = primarySelectedObj?.fontSize || currentFontSize;
+    const effTextAlign = primarySelectedObj?.textAlign || currentTextAlign;
 
     const createColorButtons = () => {
       let buttonsHTML = `<div class="webdraw-style-section"><span class="webdraw-style-label">Color:</span>`;
@@ -308,8 +315,8 @@ if (!window.webDrawInitialized) {
       ];
       styles.forEach((style) => {
         let isActive =
-          (style.dash === null && effLineDash === null) ||
-          (style.dash && effLineDash && effLineDash.length > 0); // Check if effLineDash is a non-empty array for "Dotted"
+          (style.dash === null && (!effLineDash || effLineDash.length === 0)) || // Correctly check for null or empty array for solid
+          (style.dash && effLineDash && effLineDash.length > 0);
         contentHTML += `<button class="webdraw-linestyle-button ${
           isActive ? "active" : ""
         }" data-linedash='${JSON.stringify(style.dash)}' title="${
@@ -324,19 +331,14 @@ if (!window.webDrawInitialized) {
       contentHTML += `<div class="webdraw-style-section"><span class="webdraw-style-label">Font:</span>`;
       Object.keys(FONT_FAMILY_MAP).forEach((fontKey) => {
         const fontFamilyValue = FONT_FAMILY_MAP[fontKey];
-        // Compare the string value for fontFamily for active state
         contentHTML += `<button class="webdraw-font-button ${
           fontFamilyValue === effFontFamily ? "active" : ""
         }" data-fontkey="${fontKey}" title="${fontKey}" style="font-family: ${fontFamilyValue};">${fontKey}</button>`;
       });
       contentHTML += `</div>`;
-      // For text, font size is directly its pixel value, not S/M/L mapping after creation
-      // However, for new text, we use S/M/L. If a text object is selected, we could show its actual px value or map back to S/M/L if it matches.
-      // For simplicity, the S/M/L buttons in sub-window will set a PRESET size.
       contentHTML += `<div class="webdraw-style-section"><span class="webdraw-style-label">Size:</span>`;
       Object.keys(FONT_SIZE_MAP).forEach((sizeKey) => {
         const pxValue = FONT_SIZE_MAP[sizeKey];
-        // Check if the selected object's font size matches one of the S/M/L presets
         const isActive = pxValue === effFontSize;
         contentHTML += `<button class="webdraw-width-button ${
           isActive ? "active" : ""
@@ -346,9 +348,27 @@ if (!window.webDrawInitialized) {
 
       contentHTML += `<div class="webdraw-style-section"><span class="webdraw-style-label">Align:</span>`;
       const aligns = [
-        { name: "Left", value: "left", icon: "\uF036" },
-        { name: "Center", value: "center", icon: "\uF037" },
-        { name: "Right", value: "right", icon: "\uF038" },
+        {
+          name: "Left",
+          value: "left",
+          icon: svgs.text.includes("mdi")
+            ? "\uF036"
+            : "\uF0E7" /* Placeholder, mdi-format-align-left */,
+        },
+        {
+          name: "Center",
+          value: "center",
+          icon: svgs.text.includes("mdi")
+            ? "\uF037"
+            : "\uF0E8" /* Placeholder, mdi-format-align-center */,
+        },
+        {
+          name: "Right",
+          value: "right",
+          icon: svgs.text.includes("mdi")
+            ? "\uF038"
+            : "\uF0E9" /* Placeholder, mdi-format-align-right */,
+        },
       ];
       aligns.forEach((align) => {
         contentHTML += `<button class="webdraw-align-button ${
@@ -359,7 +379,7 @@ if (!window.webDrawInitialized) {
       });
       contentHTML += `</div>`;
     } else {
-      // No relevant styles for this type or nothing selected that has styles
+      console.log("No relevant styles for type:", toolOrObjectType);
       hideAllStyleSubWindows();
       return;
     }
@@ -377,7 +397,7 @@ if (!window.webDrawInitialized) {
 
   function positionSubwindow() {
     if (!styleSubwindow || !toolbox) return;
-    if (isDraggingSubwindow) return; // Position is handled by dragging logic
+    if (isDraggingSubwindow) return;
     const toolboxRect = toolbox.getBoundingClientRect();
     let topPos = toolboxRect.bottom + 5;
     let leftPos = toolboxRect.left;
@@ -394,8 +414,8 @@ if (!window.webDrawInitialized) {
   }
 
   function getScaledDashArray(baseDashArray, lineWidth) {
-    if (!baseDashArray) return null; // Solid line
-    const scaleFactor = Math.max(1, lineWidth / 4); // Adjust divisor as needed
+    if (!baseDashArray || baseDashArray.length === 0) return null; // Solid line
+    const scaleFactor = Math.max(1, lineWidth / 4);
     return [baseDashArray[0] * scaleFactor, baseDashArray[1] * scaleFactor];
   }
 
@@ -406,70 +426,79 @@ if (!window.webDrawInitialized) {
     if (!parentSection) return;
 
     let styleChanged = false;
-    const selectedObj =
+    const primarySelectedObj =
       selectedDrawingIndex !== null ? drawings[selectedDrawingIndex] : null;
 
-    // Helper to update style on object or global default
-    const updateStyle = (prop, value) => {
-      if (selectedObj) selectedObj[prop] = value;
-      else
-        window[`current${prop.charAt(0).toUpperCase() + prop.slice(1)}`] =
-          value; // e.g. currentColor
-      styleChanged = true;
-    };
-    const updateGlobalStyle = (globalVarName, value) => {
-      window[globalVarName] = value;
+    // Helper function to apply style to one or more selected objects
+    const applyStyleToSelected = (
+      prop,
+      value,
+      isLineDash = false,
+      baseDashIfDotted = null
+    ) => {
+      const targets =
+        multiSelectedIndices.length > 0
+          ? multiSelectedIndices.map((i) => drawings[i])
+          : primarySelectedObj
+          ? [primarySelectedObj]
+          : [];
+
+      if (targets.length > 0) {
+        targets.forEach((obj) => {
+          if (obj && typeof obj[prop] !== "undefined") {
+            if (isLineDash) {
+              obj[prop] = baseDashIfDotted
+                ? getScaledDashArray(
+                    baseDashIfDotted,
+                    obj.lineWidth || currentLineWidth
+                  )
+                : null;
+            } else if (prop === "lineWidth" && obj.lineDash) {
+              // If changing width and object has a dash style
+              obj[prop] = value;
+              obj.lineDash = getScaledDashArray(BASE_DOTTED_PATTERN, value); // Re-scale existing dash
+            } else {
+              obj[prop] = value;
+            }
+          }
+        });
+      } else {
+        // Apply to global current styles if nothing is selected
+        if (isLineDash) {
+          currentLineDash = baseDashIfDotted
+            ? getScaledDashArray(baseDashIfDotted, currentLineWidth)
+            : null;
+        } else if (prop === "lineWidth" && currentLineDash) {
+          currentLineWidth = value;
+          currentLineDash = getScaledDashArray(BASE_DOTTED_PATTERN, value);
+        } else {
+          window[`current${prop.charAt(0).toUpperCase() + prop.slice(1)}`] =
+            value;
+        }
+      }
       styleChanged = true;
     };
 
     if (target.dataset.color) {
-      const newColor = target.dataset.color;
-      if (selectedObj) selectedObj.color = newColor;
-      else currentColor = newColor;
-      styleChanged = true;
+      applyStyleToSelected("color", target.dataset.color);
     } else if (target.dataset.width) {
-      const newWidth = parseInt(target.dataset.width, 10);
-      if (selectedObj) {
-        selectedObj.lineWidth = newWidth;
-        if (selectedObj.lineDash)
-          selectedObj.lineDash = getScaledDashArray(
-            BASE_DOTTED_PATTERN,
-            newWidth
-          );
-      } else {
-        currentLineWidth = newWidth;
-        if (currentLineDash)
-          currentLineDash = getScaledDashArray(BASE_DOTTED_PATTERN, newWidth);
-      }
-      styleChanged = true;
+      applyStyleToSelected("lineWidth", parseInt(target.dataset.width, 10));
     } else if (target.dataset.linedash) {
-      const baseDash = JSON.parse(target.dataset.linedash);
-      const effectiveLineWidth = selectedObj
-        ? selectedObj.lineWidth
-        : currentLineWidth;
-      const newDash = baseDash
-        ? getScaledDashArray(baseDash, effectiveLineWidth)
-        : null;
-      if (selectedObj) selectedObj.lineDash = newDash;
-      else currentLineDash = newDash;
-      styleChanged = true;
+      applyStyleToSelected(
+        "lineDash",
+        null,
+        true,
+        JSON.parse(target.dataset.linedash)
+      );
     } else if (target.dataset.fontkey) {
-      const newFontFamily = FONT_FAMILY_MAP[target.dataset.fontkey];
-      if (selectedObj) selectedObj.fontFamily = newFontFamily;
-      else currentFontFamily = newFontFamily;
-      styleChanged = true;
+      applyStyleToSelected(
+        "fontFamily",
+        FONT_FAMILY_MAP[target.dataset.fontkey]
+      );
     } else if (target.dataset.fontsize) {
-      // This applies S/M/L presets
-      const newFontSize = target.dataset.fontsize;
-      if (selectedObj && selectedObj.type === "text")
-        selectedObj.fontSize = newFontSize;
-      else currentFontSize = newFontSize;
-      styleChanged = true;
+      applyStyleToSelected("fontSize", target.dataset.fontsize);
     } else if (target.dataset.align) {
-      const newAlign = target.dataset.align;
-      if (selectedObj) selectedObj.textAlign = newAlign;
-      else currentTextAlign = newAlign;
-      styleChanged = true;
+      applyStyleToSelected("textAlign", target.dataset.align);
     }
 
     if (styleChanged) {
@@ -478,15 +507,14 @@ if (!window.webDrawInitialized) {
         .forEach((btn) => btn.classList.remove("active"));
       target.classList.add("active");
 
-      // Special handling for line style active state (solid vs dotted)
       if (target.dataset.linedash) {
-        const currentActiveDash = selectedObj
-          ? selectedObj.lineDash
+        const currentActiveDash = primarySelectedObj
+          ? primarySelectedObj.lineDash
           : currentLineDash;
         parentSection
           .querySelectorAll("button[data-linedash]")
           .forEach((btn) => {
-            const btnDashVal = JSON.parse(btn.dataset.linedash); // null for solid, array for dotted
+            const btnDashVal = JSON.parse(btn.dataset.linedash);
             const btnIsDottedIntent = btnDashVal !== null;
             const currentIsDotted =
               currentActiveDash !== null && currentActiveDash.length > 0;
@@ -497,22 +525,10 @@ if (!window.webDrawInitialized) {
           });
       }
 
-      if (selectedObj) {
+      if (primarySelectedObj || multiSelectedIndices.length > 0) {
         saveDrawings();
         redrawCanvas();
       }
-      // Log current effective styles (either global or what's being applied to selected obj)
-      console.log(
-        "Style updated. Current effective: ",
-        selectedObj || {
-          currentColor,
-          currentLineWidth,
-          currentLineDash,
-          currentFontFamily,
-          currentFontSize,
-          currentTextAlign,
-        }
-      );
     }
   }
 
@@ -534,25 +550,21 @@ if (!window.webDrawInitialized) {
       return;
     }
 
-    // If clicking the currently active tool
     if (currentTool === tool) {
       if (
         tool === "select" &&
         selectedDrawingIndex !== null &&
         drawings[selectedDrawingIndex]
       ) {
-        // Toggle style subwindow for the selected object
         if (styleSubwindow) hideAllStyleSubWindows();
         else createOrShowStyleSubWindow(drawings[selectedDrawingIndex].type);
       } else if (["pencil", "rect", "arrow", "text"].includes(tool)) {
-        // For drawing tools, toggle their subwindow
         if (styleSubwindow) hideAllStyleSubWindows();
         else createOrShowStyleSubWindow(tool);
       }
       return;
     }
 
-    // Switching to a new tool
     const currentActiveButtonInToolbox = toolbox.querySelector(
       ".webdraw-button.active"
     );
@@ -561,10 +573,8 @@ if (!window.webDrawInitialized) {
     currentTool = tool;
     targetButton.classList.add("active");
 
-    // Reset selection state when switching tools, unless switching TO select and an object becomes selected later
-    if (tool !== "select") {
-      selectedDrawingIndex = null;
-    }
+    selectedDrawingIndex = null;
+    multiSelectedIndices = [];
     isDraggingObject = false;
     isResizingObject = false;
     resizeHandleType = null;
@@ -572,25 +582,18 @@ if (!window.webDrawInitialized) {
       isSelectingArea = false;
       selectionAreaRect = null;
     }
-    if (textInputDiv) removeTextInput(true); // true to not save on tool switch, just cancel
+    if (textInputDiv) removeTextInput(true);
 
     setCursorForTool(currentTool);
 
-    // Manage style subwindow visibility based on new tool
     if (tool === "select") {
-      // For select tool, subwindow is shown only if an object is actually selected (handled in mousedown/mouseup)
-      if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
-        createOrShowStyleSubWindow(drawings[selectedDrawingIndex].type);
-      } else {
-        hideAllStyleSubWindows();
-      }
+      hideAllStyleSubWindows();
     } else if (["pencil", "rect", "arrow", "text"].includes(tool)) {
-      createOrShowStyleSubWindow(tool); // Show subwindow for new drawing tool
+      createOrShowStyleSubWindow(tool);
     } else {
-      // For tools like share, clear, exit (though handled earlier) or any future tools without subwindows
       hideAllStyleSubWindows();
     }
-    redrawCanvas(); // Redraw to clear selection highlights if any, or show new tool cursor effects
+    redrawCanvas();
   }
 
   function setCursorForTool(tool) {
@@ -606,7 +609,7 @@ if (!window.webDrawInitialized) {
         break;
       case "select":
         canvas.style.cursor = "default";
-        break; // Hover logic will change it for objects/handles
+        break;
       default:
         canvas.style.cursor = "default";
     }
@@ -663,10 +666,35 @@ if (!window.webDrawInitialized) {
   }
 
   function handleKeyDown(e) {
+    if (document.getElementById("webDrawConfirmationOverlay")) {
+      if (e.key === "Enter" || e.key === "Escape") {
+        const confirmDialog = document.getElementById("webDrawConfirmation");
+        if (confirmDialog) {
+          let buttonToClick;
+          if (e.key === "Enter") {
+            buttonToClick =
+              confirmDialog.querySelector(
+                ".confirm-action-danger, .confirm-action-normal"
+              ) || confirmDialog.querySelector("button");
+          } else {
+            buttonToClick =
+              confirmDialog.querySelector(".confirm-action-cancel") ||
+              confirmDialog.querySelectorAll("button")[
+                confirmDialog.querySelectorAll("button").length - 1
+              ];
+          }
+          if (buttonToClick) buttonToClick.click();
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     if (e.key === "Escape") {
       if (confirmationDiv) removeConfirmation();
       else if (styleSubwindow) hideAllStyleSubWindows();
-      else if (textInputDiv) removeTextInput(true); // true to cancel
+      else if (textInputDiv) removeTextInput(true);
       else if (
         isDrawing ||
         isDraggingObject ||
@@ -680,8 +708,7 @@ if (!window.webDrawInitialized) {
         isSelectingArea = false;
         selectionAreaRect = null;
         initialObjectPos = null;
-        // If drawing was pencil and very short, remove it.
-        if (currentTool === "pencil" && isDrawing && drawings.length > 0) {
+        if (currentTool === "pencil" && drawings.length > 0) {
           const lastDrawing = drawings[drawings.length - 1];
           if (lastDrawing.type === "pencil" && lastDrawing.points.length <= 1)
             drawings.pop();
@@ -695,7 +722,10 @@ if (!window.webDrawInitialized) {
         textInputDiv?.contains(document.activeElement)
       )
     ) {
-      if (isActive && selectedDrawingIndex !== null) {
+      if (
+        isActive &&
+        (selectedDrawingIndex !== null || multiSelectedIndices.length > 0)
+      ) {
         e.preventDefault();
         handleDelete();
       }
@@ -720,7 +750,7 @@ if (!window.webDrawInitialized) {
   function switchTool(tool) {
     if (!toolbox || currentTool === tool) return;
     const button = toolbox.querySelector(`button[data-tool="${tool}"]`);
-    if (button) button.click(); // Simulate click to go through full tool switch logic
+    if (button) button.click();
   }
 
   function getCanvasRelativeCoords(e) {
@@ -739,15 +769,12 @@ if (!window.webDrawInitialized) {
       !canvas
     )
       return null;
-
-    const objBounds = getDrawingBounds(drawing, true); // true for precise bounds for handles
+    const objBounds = getDrawingBounds(drawing, true);
     if (!objBounds) return null;
-
-    const hs = RESIZE_HANDLE_SIZE; // Use full size for easier hit
+    const hs = RESIZE_HANDLE_SIZE;
     const canvasRect = canvas.getBoundingClientRect();
     const mouseDocX = canvasX + canvasRect.left + window.scrollX;
     const mouseDocY = canvasY + canvasRect.top + window.scrollY;
-
     let actualX, actualY, actualWidth, actualHeight;
     if (drawing.type === "rect") {
       actualX = drawing.x;
@@ -755,15 +782,12 @@ if (!window.webDrawInitialized) {
       actualWidth = drawing.width;
       actualHeight = drawing.height;
     } else {
-      // text
       actualX = objBounds.xPrecise;
       actualY = objBounds.yPrecise;
       actualWidth = objBounds.widthPrecise;
       actualHeight = objBounds.heightPrecise;
     }
-
     const handles = {
-      // Positions are centers of handles
       nw: { x: actualX, y: actualY },
       n: { x: actualX + actualWidth / 2, y: actualY },
       ne: { x: actualX + actualWidth, y: actualY },
@@ -773,10 +797,8 @@ if (!window.webDrawInitialized) {
       s: { x: actualX + actualWidth / 2, y: actualY + actualHeight },
       se: { x: actualX + actualWidth, y: actualY + actualHeight },
     };
-
     for (const type in handles) {
       const handle = handles[type];
-      // Check if mouseDocX, mouseDocY is within the handle's bounds (hs is half-size for this check)
       if (
         mouseDocX >= handle.x - hs / 2 &&
         mouseDocX <= handle.x + hs / 2 &&
@@ -809,6 +831,7 @@ if (!window.webDrawInitialized) {
   }
 
   function handleCanvasMouseDown(e) {
+    if (document.getElementById("webDrawConfirmationOverlay")) return;
     if (
       e.button !== 0 ||
       !ctx ||
@@ -827,9 +850,9 @@ if (!window.webDrawInitialized) {
     const docCoords = getDocumentRelativeCoords(e);
     const canvasCoords = getCanvasRelativeCoords(e);
     startX = docCoords.x;
-    startY = docCoords.y; // Mousedown location in document coords
+    startY = docCoords.y;
     dragStartX = e.pageX;
-    dragStartY = e.pageY; // Mousedown location in page coords (for delta on move)
+    dragStartY = e.pageY;
 
     isDrawing = false;
     isDraggingObject = false;
@@ -851,11 +874,11 @@ if (!window.webDrawInitialized) {
           if (resizeHandleType) {
             isResizingObject = true;
             clickedOnSelectedObjectHandle = true;
+            multiSelectedIndices = [selectedDrawingIndex];
             const preciseBounds = getDrawingBounds(selectedObj, true);
             initialObjectPos = {
               x: selectedObj.x,
               y: selectedObj.y,
-              // For rect, width/height are direct. For text, they come from bounds.
               width:
                 selectedObj.type === "rect"
                   ? selectedObj.width
@@ -864,8 +887,7 @@ if (!window.webDrawInitialized) {
                 selectedObj.type === "rect"
                   ? selectedObj.height
                   : preciseBounds.heightPrecise,
-              fontSize: selectedObj.fontSize, // Store original font size for text
-              // Store precise top-left for text object anchor adjustment during resize
+              fontSize: selectedObj.fontSize,
               preciseX: preciseBounds.xPrecise,
               preciseY: preciseBounds.yPrecise,
             };
@@ -874,13 +896,13 @@ if (!window.webDrawInitialized) {
       }
 
       if (!clickedOnSelectedObjectHandle) {
-        // Not starting a resize op
         const clickedIndex = findClickedDrawingIndex(
           canvasCoords.x,
           canvasCoords.y
         );
         if (clickedIndex !== null) {
           selectedDrawingIndex = clickedIndex;
+          multiSelectedIndices = [clickedIndex]; // Single click selects one, clears multi
           isDraggingObject = true;
           const obj = drawings[selectedDrawingIndex];
           if (obj.type === "pencil")
@@ -893,42 +915,32 @@ if (!window.webDrawInitialized) {
               y2: obj.y2,
             };
           else {
-            // rect, text
-            const preciseBounds = getDrawingBounds(obj, true);
+            const pb = getDrawingBounds(obj, true);
             initialObjectPos = {
               x: obj.x,
               y: obj.y,
-              width:
-                obj.type === "rect" ? obj.width : preciseBounds.widthPrecise,
-              height:
-                obj.type === "rect" ? obj.height : preciseBounds.heightPrecise,
+              width: obj.type === "rect" ? obj.width : pb.widthPrecise,
+              height: obj.type === "rect" ? obj.height : pb.heightPrecise,
               fontSize: obj.fontSize,
-              preciseX: preciseBounds.xPrecise, // For text drag reference
-              preciseY: preciseBounds.yPrecise,
+              preciseX: pb.xPrecise,
+              preciseY: pb.yPrecise,
             };
           }
         } else {
-          // Clicked empty space
           selectedDrawingIndex = null;
+          multiSelectedIndices = [];
           isSelectingArea = true;
           selectionAreaRect = { x: startX, y: startY, width: 0, height: 0 };
         }
       }
-      // Update subwindow based on selection
       if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
         createOrShowStyleSubWindow(drawings[selectedDrawingIndex].type);
       } else {
         hideAllStyleSubWindows();
       }
     } else if (["pencil", "rect", "arrow", "text"].includes(currentTool)) {
-      selectedDrawingIndex = null; // Deselect if starting to draw new
-      if (styleSubwindow && currentTool !== styleSubwindow.dataset.toolFor) {
-        // If subwindow is for a different tool type
-        createOrShowStyleSubWindow(currentTool);
-      } else if (!styleSubwindow) {
-        createOrShowStyleSubWindow(currentTool);
-      }
-
+      selectedDrawingIndex = null;
+      multiSelectedIndices = [];
       isDrawing = true;
       if (currentTool === "pencil") {
         drawings.push({
@@ -950,18 +962,17 @@ if (!window.webDrawInitialized) {
   }
 
   function handleDrawingMouseMove(e) {
-    if (!isActive) return;
-    const docCoords = getDocumentRelativeCoords(e); // Current mouse in document coords
+    if (!isActive || document.getElementById("webDrawConfirmationOverlay"))
+      return;
+    const docCoords = getDocumentRelativeCoords(e);
     const pageX = e.pageX,
-      pageY = e.pageY; // Current mouse in page coords (for older delta logic if needed)
-    const canvasCoords = getCanvasRelativeCoords(e); // For cursor updates
+      pageY = e.pageY;
+    const canvasCoords = getCanvasRelativeCoords(e);
 
     if (isResizingObject && selectedDrawingIndex !== null && initialObjectPos) {
       const obj = drawings[selectedDrawingIndex];
-      // Deltas from original mousedown position (startX, startY in doc coords)
       const deltaX = docCoords.x - startX;
       const deltaY = docCoords.y - startY;
-
       let newX = initialObjectPos.x,
         newY = initialObjectPos.y;
       let newWidth = initialObjectPos.width,
@@ -989,22 +1000,12 @@ if (!window.webDrawInitialized) {
           obj.y = newY;
           obj.height = newHeight;
         }
-        // Adjust x/y if origin moved due to w/n handle and size was valid
         if (resizeHandleType.includes("w") && newWidth >= MIN_RECT_SIZE)
           obj.x = newX;
-        else if (resizeHandleType.includes("w")) {
-          /* no change */
-        }
         if (resizeHandleType.includes("n") && newHeight >= MIN_RECT_SIZE)
           obj.y = newY;
-        else if (resizeHandleType.includes("n")) {
-          /* no change */
-        }
       } else if (obj.type === "text") {
-        // For text, newWidth/newHeight are conceptual target bounds.
-        // Scale font size based on the change in width.
         if (newWidth >= MIN_RECT_SIZE && initialObjectPos.width > 0.1) {
-          // initialObjectPos.width is from getDrawingBounds
           const scaleFactor = newWidth / initialObjectPos.width;
           let newFontSizePx =
             (parseInt(initialObjectPos.fontSize) || 16) * scaleFactor;
@@ -1013,17 +1014,10 @@ if (!window.webDrawInitialized) {
             Math.min(newFontSizePx, MAX_TEXT_FONT_SIZE_PX)
           );
           obj.fontSize = `${Math.round(newFontSizePx)}px`;
-
-          // Adjust anchor (obj.x, obj.y) if top/left handles are used
-          // This attempts to keep the visual content relatively stable during resize from these corners/sides.
-          if (resizeHandleType.includes("w")) {
-            // obj.x = initialObjectPos.preciseX + deltaX; // original preciseX + delta
+          if (resizeHandleType.includes("w"))
             obj.x = initialObjectPos.x + (docCoords.x - startX);
-          }
-          if (resizeHandleType.includes("n")) {
-            // obj.y = initialObjectPos.preciseY + deltaY; // original preciseY + delta
+          if (resizeHandleType.includes("n"))
             obj.y = initialObjectPos.y + (docCoords.y - startY);
-          }
         }
       }
       requestAnimationFrame(redrawCanvas);
@@ -1033,7 +1027,7 @@ if (!window.webDrawInitialized) {
       initialObjectPos
     ) {
       const deltaX = pageX - dragStartX;
-      const deltaY = pageY - dragStartY; // Use page coords for simple drag
+      const deltaY = pageY - dragStartY;
       const obj = drawings[selectedDrawingIndex];
       if (obj.type === "pencil")
         obj.points = initialObjectPos.map((p) => ({
@@ -1048,13 +1042,47 @@ if (!window.webDrawInitialized) {
       } else {
         obj.x = initialObjectPos.x + deltaX;
         obj.y = initialObjectPos.y + deltaY;
-      } // Rect, Text
+      }
       requestAnimationFrame(redrawCanvas);
     } else if (isDrawing) {
       if (currentTool === "pencil") {
-        /* ... (no changes) ... */
+        const currentPath = drawings[drawings.length - 1];
+        if (currentPath?.type === "pencil") {
+          currentPath.points.push(docCoords);
+          requestAnimationFrame(redrawCanvas);
+        }
       } else if (currentTool === "rect" || currentTool === "arrow") {
-        /* ... (no changes to preview) ... */
+        requestAnimationFrame(() => {
+          redrawCanvas();
+          ctx.save();
+          ctx.strokeStyle = currentColor;
+          ctx.lineWidth = currentLineWidth;
+          ctx.setLineDash(currentLineDash || []);
+          const startCP = getCanvasCoords(startX, startY);
+          const currentCP = getCanvasCoords(docCoords.x, docCoords.y);
+          if (currentTool === "rect") {
+            ctx.strokeRect(
+              startCP.x,
+              startCP.y,
+              currentCP.x - startCP.x,
+              currentCP.y - startCP.y
+            );
+          } else if (currentTool === "arrow") {
+            ctx.beginPath();
+            ctx.moveTo(startCP.x, startCP.y);
+            ctx.lineTo(currentCP.x, currentCP.y);
+            ctx.stroke();
+            drawArrowhead(
+              ctx,
+              startCP.x,
+              startCP.y,
+              currentCP.x,
+              currentCP.y,
+              10 + currentLineWidth * 2
+            );
+          }
+          ctx.restore();
+        });
       }
     } else if (
       currentTool === "select" &&
@@ -1069,38 +1097,58 @@ if (!window.webDrawInitialized) {
       !isDraggingObject &&
       !isResizingObject
     ) {
-      // Cursor updates for select tool
       let newCursor = "default";
-      if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
-        const selectedObj = drawings[selectedDrawingIndex];
-        if (selectedObj.type === "rect" || selectedObj.type === "text") {
-          const handle = getResizeHandleAtPoint(
-            selectedObj,
+      const primarySelectedObj =
+        selectedDrawingIndex !== null ? drawings[selectedDrawingIndex] : null;
+      if (
+        primarySelectedObj &&
+        (primarySelectedObj.type === "rect" ||
+          primarySelectedObj.type === "text")
+      ) {
+        const handle = getResizeHandleAtPoint(
+          primarySelectedObj,
+          canvasCoords.x,
+          canvasCoords.y
+        );
+        if (handle) newCursor = getCursorForResizeHandle(handle);
+        else if (
+          isPointHittingDrawing(
             canvasCoords.x,
-            canvasCoords.y
-          );
-          if (handle) newCursor = getCursorForResizeHandle(handle);
-          else if (
-            isPointHittingDrawing(canvasCoords.x, canvasCoords.y, selectedObj)
+            canvasCoords.y,
+            primarySelectedObj
           )
-            newCursor = "move";
-        } else if (
-          isPointHittingDrawing(canvasCoords.x, canvasCoords.y, selectedObj)
-        ) {
+        )
           newCursor = "move";
-        }
+      } else if (
+        primarySelectedObj &&
+        isPointHittingDrawing(
+          canvasCoords.x,
+          canvasCoords.y,
+          primarySelectedObj
+        )
+      ) {
+        newCursor = "move";
       } else {
-        // No object selected, check for hover over any object
-        if (findClickedDrawingIndex(canvasCoords.x, canvasCoords.y) !== null)
-          newCursor = "move";
+        // No primary selection, check general hover
+        const hoveredIdx = findClickedDrawingIndex(
+          canvasCoords.x,
+          canvasCoords.y
+        );
+        if (hoveredIdx !== null) newCursor = "move";
       }
       if (canvas.style.cursor !== newCursor) canvas.style.cursor = newCursor;
     }
   }
 
   function handleDrawingMouseUp(e) {
-    if (e.button !== 0 || !isActive) return;
+    if (
+      e.button !== 0 ||
+      !isActive ||
+      document.getElementById("webDrawConfirmationOverlay")
+    )
+      return;
     const docCoords = getDocumentRelativeCoords(e);
+    let switchToSelect = false;
 
     if (
       isResizingObject &&
@@ -1130,13 +1178,13 @@ if (!window.webDrawInitialized) {
           currentPath.points.length < 2
         )
           drawings.pop();
+        switchToSelect = true;
       } else if (currentTool === "rect") {
         const rectX = Math.min(startX, docCoords.x),
           rectY = Math.min(startY, docCoords.y);
         const rectWidth = Math.abs(docCoords.x - startX),
           rectHeight = Math.abs(docCoords.y - startY);
-        if (rectWidth > MIN_RECT_SIZE / 2 && rectHeight > MIN_RECT_SIZE / 2) {
-          // Allow smaller initial draw
+        if (rectWidth > 2 && rectHeight > 2) {
           drawings.push({
             type: "rect",
             x: rectX,
@@ -1148,6 +1196,7 @@ if (!window.webDrawInitialized) {
             lineDash: currentLineDash ? [...currentLineDash] : null,
           });
         }
+        switchToSelect = true;
       } else if (currentTool === "arrow") {
         if (
           Math.abs(docCoords.x - startX) > 2 ||
@@ -1164,14 +1213,23 @@ if (!window.webDrawInitialized) {
             lineDash: currentLineDash ? [...currentLineDash] : null,
           });
         }
+        switchToSelect = true;
       } else if (currentTool === "text") {
         if (
           Math.abs(docCoords.x - startX) < 5 &&
           Math.abs(docCoords.y - startY) < 5
         )
           createTextPrompt(startX, startY);
+        // Text mode switches to select after text input is finished (in removeTextInput)
       }
-      if (currentTool !== "text") saveDrawings();
+      if (
+        currentTool !== "text" &&
+        drawings.length > 0 &&
+        drawings[drawings.length - 1].type === currentTool
+      ) {
+        // check if new drawing was added
+        saveDrawings();
+      }
     } else if (
       currentTool === "select" &&
       isSelectingArea &&
@@ -1189,22 +1247,23 @@ if (!window.webDrawInitialized) {
         width: Math.abs(selectionAreaRect.width),
         height: Math.abs(selectionAreaRect.height),
       };
-      selectedDrawingIndex = null; // Reset before checking
+      selectedDrawingIndex = null;
+      multiSelectedIndices = [];
       if (finalSelectionRect.width > 5 && finalSelectionRect.height > 5) {
-        for (let i = drawings.length - 1; i >= 0; i--) {
-          if (
-            doRectsIntersect(finalSelectionRect, getDrawingBounds(drawings[i]))
-          ) {
-            selectedDrawingIndex = i;
-            break;
+        drawings.forEach((drawing, index) => {
+          if (doRectsIntersect(finalSelectionRect, getDrawingBounds(drawing))) {
+            multiSelectedIndices.push(index);
           }
+        });
+        if (multiSelectedIndices.length > 0) {
+          console.log("Multi-selected indices:", multiSelectedIndices);
         }
       }
-      // Update subwindow visibility/content based on new selection state
-      if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
+      if (multiSelectedIndices.length === 0) hideAllStyleSubWindows();
+      else if (multiSelectedIndices.length === 1) {
+        // If only one selected by area, make it primary
+        selectedDrawingIndex = multiSelectedIndices[0];
         createOrShowStyleSubWindow(drawings[selectedDrawingIndex].type);
-      } else {
-        hideAllStyleSubWindows();
       }
     }
 
@@ -1218,7 +1277,11 @@ if (!window.webDrawInitialized) {
     document.removeEventListener("mousemove", handleDocumentMouseMove);
     document.removeEventListener("mouseup", handleDocumentMouseUp);
     redrawCanvas();
-    setCursorForTool(currentTool);
+    if (switchToSelect) {
+      switchTool("select");
+    } else {
+      setCursorForTool(currentTool);
+    }
   }
 
   function createTextPrompt(docX, docY) {
@@ -1248,7 +1311,7 @@ if (!window.webDrawInitialized) {
     const removeListenersAndInput = (cancel = false) => {
       if (handleOutsideClick)
         document.removeEventListener("mousedown", handleOutsideClick, true);
-      removeTextInput(cancel); // Pass cancel flag
+      removeTextInput(cancel);
     };
 
     document.body.appendChild(textInputDiv);
@@ -1269,10 +1332,9 @@ if (!window.webDrawInitialized) {
         textInputDiv &&
         !textInputDiv.contains(event.target) &&
         !toolbox?.contains(event.target) &&
-        (!styleSubwindow || !styleSubwindow.contains(event.target)) && // Check if styleSubwindow exists
+        (!styleSubwindow || !styleSubwindow.contains(event.target)) &&
         (!confirmationDiv || !confirmationDiv.contains(event.target))
       ) {
-        // Check if confirmationDiv exists
         removeListenersAndInput(false);
       }
     };
@@ -1292,12 +1354,8 @@ if (!window.webDrawInitialized) {
     const finalDocX = currentRect.left + window.scrollX;
     const finalDocY = currentRect.top + window.scrollY;
     const currentText = textInputDiv.innerText;
-
-    if (currentText.trim()) {
-      saveText(finalDocX, finalDocY, currentText);
-    } else {
-      console.log("Empty text input - not saved.");
-    }
+    if (currentText.trim()) saveText(finalDocX, finalDocY, currentText);
+    else console.log("Empty text input - not saved.");
   }
 
   function saveText(docX, docY, text) {
@@ -1323,10 +1381,7 @@ if (!window.webDrawInitialized) {
       saveOrRemoveTextOnExit(cancel);
       textInputDiv.remove();
       textInputDiv = null;
-      if (!cancel) {
-        // If text was potentially saved (not explicitly cancelled by Esc or tool switch)
-        switchTool("select");
-      }
+      if (!cancel) switchTool("select");
     }
   }
 
@@ -1349,7 +1404,7 @@ if (!window.webDrawInitialized) {
     let xPrecise = 0,
       yPrecise = 0,
       widthPrecise = 0,
-      heightPrecise = 0; // For precise calculations
+      heightPrecise = 0;
 
     switch (drawing.type) {
       case "pencil":
@@ -1393,7 +1448,6 @@ if (!window.webDrawInitialized) {
         tempCtx.font = `${drawing.fontSize || FONT_SIZE_MAP.M} ${
           drawing.fontFamily || FONT_FAMILY_MAP.Virgil
         }`;
-
         let maxLineWidth = 0;
         lines.forEach((line) => {
           maxLineWidth = Math.max(
@@ -1401,20 +1455,14 @@ if (!window.webDrawInitialized) {
             tempCtx.measureText(line).width
           );
         });
-
-        yPrecise = drawing.y; // Text y is the top-left of the first line's baseline "area"
+        yPrecise = drawing.y;
         heightPrecise = lines.length * lineHeight;
-
-        if (drawing.textAlign === "center") {
+        if (drawing.textAlign === "center")
           xPrecise = drawing.x - maxLineWidth / 2;
-        } else if (drawing.textAlign === "right") {
+        else if (drawing.textAlign === "right")
           xPrecise = drawing.x - maxLineWidth;
-        } else {
-          // left
-          xPrecise = drawing.x;
-        }
+        else xPrecise = drawing.x;
         widthPrecise = maxLineWidth;
-
         minX = xPrecise;
         minY = yPrecise;
         maxX = xPrecise + widthPrecise;
@@ -1423,15 +1471,13 @@ if (!window.webDrawInitialized) {
       default:
         return null;
     }
-
     const paddingValue = precise
-      ? RESIZE_HANDLE_SIZE / 2 // For handle interaction on precise box
+      ? RESIZE_HANDLE_SIZE / 2
       : (drawing.lineWidth || (drawing.type === "text" ? 0 : 1)) / 2 +
-        5 + // General hit padding
+        5 +
         (drawing.type === "rect" || drawing.type === "text"
           ? RESIZE_HANDLE_SIZE
-          : 0); // Extra for handles
-
+          : 0);
     return {
       x: minX - paddingValue,
       y: minY - paddingValue,
@@ -1445,27 +1491,22 @@ if (!window.webDrawInitialized) {
   }
 
   function isPointHittingDrawing(canvasX, canvasY, drawing) {
-    const bounds = getDrawingBounds(drawing); // General padded bounds
+    const bounds = getDrawingBounds(drawing);
     if (!bounds || !canvas) return false;
-
     const canvasRect = canvas.getBoundingClientRect();
     const docX = canvasX + canvasRect.left + window.scrollX;
     const docY = canvasY + canvasRect.top + window.scrollY;
-
-    // For resizable types, first check against their precise visual box
     if (drawing.type === "rect" || drawing.type === "text") {
-      const preciseBounds = getDrawingBounds(drawing, true); // true for precise calculation
+      const preciseBounds = getDrawingBounds(drawing, true);
       if (
         docX >= preciseBounds.xPrecise &&
         docX <= preciseBounds.xPrecise + preciseBounds.widthPrecise &&
         docY >= preciseBounds.yPrecise &&
         docY <= preciseBounds.yPrecise + preciseBounds.heightPrecise
       ) {
-        return true; // Hit the main body
+        return true;
       }
-      // If not hitting body, a click might still be on a handle, which is covered by general `bounds`
     }
-    // General check for other types or for hitting handles of resizable types
     return (
       docX >= bounds.x &&
       docX <= bounds.x + bounds.width &&
@@ -1517,6 +1558,9 @@ if (!window.webDrawInitialized) {
       ctx.lineWidth = d.lineWidth || 1;
       ctx.setLineDash(d.lineDash || []);
 
+      let isThisObjectSelected =
+        selectedDrawingIndex === index || multiSelectedIndices.includes(index);
+
       try {
         if (d.type === "pencil" && d.points?.length > 0) {
           ctx.beginPath();
@@ -1531,9 +1575,9 @@ if (!window.webDrawInitialized) {
           if (typeof d.width === "number" && typeof d.height === "number") {
             const startCoords = getCanvasCoords(d.x, d.y);
             ctx.strokeRect(startCoords.x, startCoords.y, d.width, d.height);
-            if (index === selectedDrawingIndex) {
-              // Draw resize handles
-              const hs = RESIZE_HANDLE_SIZE / 2; // half size for centered drawing
+            if (isThisObjectSelected) {
+              // Only primary selected for resize handles
+              const hs = RESIZE_HANDLE_SIZE / 2;
               const handlesDef = [
                 { x: 0, y: 0 },
                 { x: d.width / 2, y: 0 },
@@ -1581,7 +1625,7 @@ if (!window.webDrawInitialized) {
           ctx.textAlign = textAlign;
           const fontSizePx = parseInt(d.fontSize || FONT_SIZE_MAP.M) || 16;
           const lineHeight = fontSizePx * 1.4;
-          const yOffset = fontSizePx * 0.8; // baseline adjustment
+          const yOffset = fontSizePx * 0.8;
           lines.forEach((line, lineIndex) =>
             ctx.fillText(
               line,
@@ -1589,16 +1633,15 @@ if (!window.webDrawInitialized) {
               startCoords.y + lineIndex * lineHeight + yOffset
             )
           );
-
-          if (index === selectedDrawingIndex) {
-            // Draw resize handles for selected text
-            const bounds = getDrawingBounds(d, true); // Get precise bounds
+          if (isThisObjectSelected) {
+            // Only primary selected for resize handles
+            const bounds = getDrawingBounds(d, true);
             if (bounds) {
               const hs = RESIZE_HANDLE_SIZE / 2;
               const bTopLeftCanvas = getCanvasCoords(
                 bounds.xPrecise,
                 bounds.yPrecise
-              ); // Use precise for handle base
+              );
               const handlesDef = [
                 { x: 0, y: 0 },
                 { x: bounds.widthPrecise / 2, y: 0 },
@@ -1621,19 +1664,22 @@ if (!window.webDrawInitialized) {
             }
           }
         }
-        // General selection highlight for non-resizable items (pencil, arrow)
+        // Draw general selection highlight for all multi-selected items that are not primary (or if no primary)
+        // Or for primary if it's not rect/text (which have their own handle drawing)
         if (
-          index === selectedDrawingIndex &&
-          d.type !== "rect" &&
-          d.type !== "text"
+          multiSelectedIndices.includes(index) &&
+          !(
+            selectedDrawingIndex === index &&
+            (d.type === "rect" || d.type === "text")
+          )
         ) {
           const bounds = getDrawingBounds(d);
           if (bounds) {
             const selectionTopLeftCanvas = getCanvasCoords(bounds.x, bounds.y);
             const currentDash = ctx.getLineDash();
-            ctx.strokeStyle = "rgba(0, 100, 255, 0.7)";
+            ctx.strokeStyle = "rgba(0, 100, 255, 0.5)"; // Slightly more transparent for multi-select highlight
             ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
+            ctx.setLineDash([3, 3]);
             ctx.strokeRect(
               selectionTopLeftCanvas.x,
               selectionTopLeftCanvas.y,
@@ -1707,6 +1753,10 @@ if (!window.webDrawInitialized) {
   }
 
   async function handleShare() {
+    selectedDrawingIndex = null;
+    multiSelectedIndices = []; // Clear selections
+    redrawCanvas(); // Update canvas to remove highlights
+
     let originalToolboxDisplay = toolbox ? toolbox.style.display : "";
     let originalSubwindowDisplay = styleSubwindow
       ? styleSubwindow.style.display
@@ -1714,10 +1764,9 @@ if (!window.webDrawInitialized) {
 
     if (toolbox) toolbox.style.display = "none";
     if (styleSubwindow) styleSubwindow.style.display = "none";
-    // Confirmation div is typically removed, not just hidden, but handle if it was.
     if (confirmationDiv) confirmationDiv.style.display = "none";
 
-    await new Promise((resolve) => setTimeout(resolve, 100)); // Short delay for UI to update
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     const viewportData = {
       width: window.innerWidth,
@@ -1754,27 +1803,15 @@ if (!window.webDrawInitialized) {
         if (toolbox) toolbox.style.display = originalToolboxDisplay || "flex";
         if (styleSubwindow)
           styleSubwindow.style.display = originalSubwindowDisplay || "flex";
-        if (confirmationDiv && confirmationDiv.dataset.originalDisplay) {
-          // If we stored original display
-          confirmationDiv.style.display =
-            confirmationDiv.dataset.originalDisplay;
-        } else if (confirmationDiv) {
-          // Fallback if it was just hidden
-          // It's usually removed entirely, so this might not be needed
-        }
+        // Confirmation div is usually removed when an action is taken.
       });
   }
 
   function copyLinkToClipboardAndNotify(link) {
-    navigator.clipboard
-      .writeText(link)
-      .then(() => {
-        // Notification is now handled in handleShare's promise resolution
-      })
-      .catch((err) => {
-        showNotification("Failed to copy link.", true);
-        prompt("Please copy this link manually:", link);
-      });
+    navigator.clipboard.writeText(link).catch((err) => {
+      showNotification("Failed to copy link.", true);
+      prompt("Please copy this link manually:", link);
+    });
   }
   function showNotification(message, isError = false) {
     let nDiv = document.getElementById("webDrawNotification");
@@ -1784,7 +1821,7 @@ if (!window.webDrawInitialized) {
       document.body.appendChild(nDiv);
     }
     nDiv.textContent = message;
-    nDiv.className = ""; // Clear previous classes
+    nDiv.className = "";
     if (isError) nDiv.classList.add("error");
     void nDiv.offsetWidth;
     nDiv.classList.add("visible");
@@ -1796,11 +1833,45 @@ if (!window.webDrawInitialized) {
   }
 
   function handleDelete() {
-    if (selectedDrawingIndex !== null) deleteSelectedDrawingWithConfirmation();
-    else clearAllDrawingsWithConfirmation();
+    const numToDelete =
+      multiSelectedIndices.length > 0
+        ? multiSelectedIndices.length
+        : selectedDrawingIndex !== null
+        ? 1
+        : 0;
+
+    if (numToDelete > 0) {
+      if (multiSelectedIndices.length > 0) {
+        multiSelectedIndices
+          .sort((a, b) => b - a)
+          .forEach((idx) => drawings.splice(idx, 1));
+        showNotification(`${numToDelete} item(s) deleted.`);
+      } else if (
+        selectedDrawingIndex !== null &&
+        drawings[selectedDrawingIndex]
+      ) {
+        drawings.splice(selectedDrawingIndex, 1);
+        showNotification(`Selected item deleted.`);
+      }
+      selectedDrawingIndex = null;
+      multiSelectedIndices = [];
+      isDraggingObject = false;
+      isResizingObject = false;
+      saveDrawings();
+      redrawCanvas();
+      hideAllStyleSubWindows();
+    } else {
+      clearAllDrawingsWithConfirmation(); // Clear all if nothing specific is selected
+    }
   }
+
   function showComplexConfirmation(message, buttonsConfig, callback) {
     removeConfirmation();
+    const overlay = document.createElement("div");
+    overlay.id = "webDrawConfirmationOverlay";
+    overlay.style.cssText =
+      "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.3); z-index: 10005;";
+    document.body.appendChild(overlay);
     confirmationDiv = document.createElement("div");
     confirmationDiv.id = "webDrawConfirmation";
     confirmationDiv.innerHTML = `<p>${message}</p><div class="webdraw-confirm-buttons"></div>`;
@@ -1820,53 +1891,14 @@ if (!window.webDrawInitialized) {
     if (fb) fb.focus();
   }
   function removeConfirmation() {
+    const overlay = document.getElementById("webDrawConfirmationOverlay");
+    if (overlay) overlay.remove();
     if (confirmationDiv) {
       confirmationDiv.remove();
       confirmationDiv = null;
     }
   }
-  function deleteSelectedDrawingWithConfirmation() {
-    if (selectedDrawingIndex === null) return;
-    const btns = [
-      {
-        text: "Delete Selected",
-        action: "delete_selected",
-        styleClass: "confirm-action-normal",
-      },
-      {
-        text: "Clear ALL Drawings",
-        action: "clear_all",
-        styleClass: "confirm-action-danger",
-      },
-      { text: "Cancel", action: "cancel", styleClass: "confirm-action-cancel" },
-    ];
-    showComplexConfirmation(
-      "An item is selected. Choose an action:",
-      btns,
-      (action) => {
-        if (action === "delete_selected") {
-          if (selectedDrawingIndex !== null && drawings[selectedDrawingIndex]) {
-            drawings.splice(selectedDrawingIndex, 1);
-            selectedDrawingIndex = null;
-            isDraggingObject = false;
-            isResizingObject = false;
-            saveDrawings();
-            redrawCanvas();
-            showNotification("Selected drawing deleted.");
-          }
-        } else if (action === "clear_all") {
-          drawings = [];
-          selectedDrawingIndex = null;
-          isDrawing = false;
-          isDraggingObject = false;
-          isResizingObject = false;
-          saveDrawings();
-          redrawCanvas();
-          showNotification("All drawings cleared.");
-        }
-      }
-    );
-  }
+
   function clearAllDrawingsWithConfirmation() {
     if (drawings.length === 0) {
       showNotification("Nothing to clear.");
@@ -1887,6 +1919,7 @@ if (!window.webDrawInitialized) {
         if (action === "confirm_clear_all") {
           drawings = [];
           selectedDrawingIndex = null;
+          multiSelectedIndices = [];
           isDrawing = false;
           isDraggingObject = false;
           isResizingObject = false;
@@ -1900,7 +1933,7 @@ if (!window.webDrawInitialized) {
 
   function deactivateDrawing() {
     removeConfirmation();
-    if (textInputDiv) removeTextInput(true); // true to cancel/not save
+    if (textInputDiv) removeTextInput(true);
     hideAllStyleSubWindows();
     removeEventListeners();
     if (canvas) canvas.remove();
@@ -1916,6 +1949,7 @@ if (!window.webDrawInitialized) {
     confirmationDiv = null;
     drawings = [];
     selectedDrawingIndex = null;
+    multiSelectedIndices = [];
     isActive = false;
     isDrawing = false;
     isDraggingObject = false;

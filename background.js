@@ -130,21 +130,41 @@ async function drawAnnotationsOnScreenshot(screenshotDataUrl, drawings, viewport
             return { blob: null, error: "Failed to get OffscreenCanvas context." };
         }
 
-        const response = await fetch(screenshotDataUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch screenshot data: ${response.statusText}`);
+        // --- Convert Data URL to Blob ---
+        // 1. Split the Data URL to get parts
+        const parts = screenshotDataUrl.split(',');
+        if (parts.length !== 2) {
+            throw new Error("Invalid Data URL format for screenshot.");
         }
-        const imageBlob = await response.blob();
+        const meta = parts[0]; // e.g., "data:image/png;base64"
+        const base64Data = parts[1];
+
+        // 2. Extract MIME type
+        const mimeMatch = meta.match(/:(.*?);/);
+        const mimeType = mimeMatch && mimeMatch[1] ? mimeMatch[1] : 'image/png'; // Default to image/png
+
+        // 3. Convert Base64 to Uint8Array
+        const byteString = atob(base64Data); // Decode Base64
+        const ia = new Uint8Array(byteString.length);
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+
+        // 4. Create Blob
+        const imageBlob = new Blob([ia], { type: mimeType });
+        // --- End Data URL to Blob conversion ---
+
         const imageBitmap = await createImageBitmap(imageBlob);
 
         ctx.drawImage(imageBitmap, 0, 0, viewport.width, viewport.height);
-        imageBitmap.close();
+        imageBitmap.close(); // Release memory once drawn
 
-        ctx.save();
+        ctx.save(); // Save default state (after drawing background)
         ctx.translate(-viewport.scrollX, -viewport.scrollY);
 
+        // --- Draw Annotations ---
         drawings.forEach((d) => {
-            ctx.save();
+            ctx.save(); // Save state for this drawing
             ctx.strokeStyle = d.color || "#000000";
             ctx.fillStyle = d.color || "#000000";
             ctx.lineWidth = d.lineWidth || 1;
@@ -168,12 +188,11 @@ async function drawAnnotationsOnScreenshot(screenshotDataUrl, drawings, viewport
                 ctx.stroke();
                 drawArrowheadBackground(ctx, d.x1, d.y1, d.x2, d.y2, 10 + (d.lineWidth || 1) * 2);
             } else if (d.type === "text") {
-                // Use fontFamily string directly as stored in drawing object
                 const font = `${d.fontSize || '16px'} ${d.fontFamily || '"Virgil", "Helvetica Neue", Arial, sans-serif'}`;
                 const textAlign = d.textAlign || 'left';
                 const fontSizePx = parseInt(d.fontSize || '16px') || 16;
                 const lineHeight = fontSizePx * 1.4;
-                ctx.font = font; // Apply font before measuring or drawing
+                ctx.font = font;
                 ctx.textAlign = textAlign;
                 const yOffset = fontSizePx * 0.8;
                 const lines = d.text.split("\n");
@@ -181,28 +200,33 @@ async function drawAnnotationsOnScreenshot(screenshotDataUrl, drawings, viewport
                     ctx.fillText(line, d.x, d.y + (lineIndex * lineHeight) + yOffset);
                 });
             }
-            ctx.restore();
-        });
+            ctx.restore(); // Restore state after drawing this element
+        }); // End forEach drawing
 
-        ctx.restore(); // Restore from the -scrollX, -scrollY translation
+        ctx.restore(); // Restore original translated state
 
         // Add "Powered by WebDraw" watermark
-        const watermarkText = "Powered by WebDraw@2025 ❤️"; // Using a literal heart emoji
-        ctx.font = "bold 12px Arial"; // Using a common safe font for watermark
+        const watermarkText = "Powered by WebDraw@2025 ❤️";
+        ctx.font = "bold 12px Arial";
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
         ctx.textAlign = "right";
-        ctx.textBaseline = "alphabetic"; // common baseline
+        ctx.textBaseline = "alphabetic";
         const margin = 10;
         ctx.fillText(watermarkText, viewport.width - margin, viewport.height - margin);
 
+
+        // Convert canvas to Blob
         const finalBlob = await offscreenCanvas.convertToBlob({ type: "image/png" });
         return { blob: finalBlob, error: null };
 
     } catch (error) {
         console.error("BG: Error drawing annotations on offscreen canvas:", error);
         let errorMessage = "Failed during annotation drawing.";
-        if (error.message.includes("Failed to fetch")) errorMessage = "Failed to load screenshot data for processing.";
-        else if (error.message.includes("createImageBitmap")) errorMessage = "Failed to decode screenshot image.";
+        if (error.message.includes("Data URL")) {
+            errorMessage = "Invalid screenshot data format.";
+        } else if (error.message.includes("createImageBitmap")) {
+            errorMessage = "Failed to decode screenshot image.";
+        }
         return { blob: null, error: errorMessage };
     }
 }
